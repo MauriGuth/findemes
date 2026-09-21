@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  EXPO_NO_TELEMETRY: 1
+  NODE_ENV: test
+
+jobs:
+  check:
+    name: lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: findemes
+          POSTGRES_PASSWORD: findemes
+          POSTGRES_DB: findemes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U findemes -d findemes"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://findemes:findemes@localhost:5432/findemes
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations to the CI database
+        run: pnpm --filter @findemes/api db:deploy
+      - run: pnpm turbo run lint typecheck test build
+      - name: API e2e (real Postgres)
+        run: pnpm --filter @findemes/api test:e2e
+      - run: pnpm format:check
+
+  mobile-bundle:
+    name: mobile · metro bundle
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      EXPO_PUBLIC_API_URL: https://api.example.invalid
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@findemes/shared
+      - run: pnpm --filter @findemes/mobile doctor
+      - name: Export the Android bundle (proves Metro resolves shared + NativeWind)
+        run: pnpm --filter @findemes/mobile export:android
