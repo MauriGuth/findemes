@@ -65,6 +65,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build --filter=@findemes/shared
-      - run: pnpm --filter @findemes/mobile doctor
+      - run: pnpm --filter @findemes/mobile run doctor
       - name: Export the Android bundle (proves Metro resolves shared + NativeWind)
-        run: pnpm --filter @findemes/mobile export:android
+        run: pnpm --filter @findemes/mobile run export:android
