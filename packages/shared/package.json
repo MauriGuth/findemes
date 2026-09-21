@@ -1,0 +1,42 @@
+{
+  "name": "@findemes/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure TypeScript shared by the API and the mobile app: money and date utils, zod schemas, and (from phase 2) the notification parsers.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "react-native": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "big.js": "7.0.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@findemes/config": "workspace:*",
+    "@types/big.js": "7.0.0",
+    "@types/node": "26.6.2",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
