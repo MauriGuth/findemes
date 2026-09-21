@@ -1,0 +1,32 @@
+{
+  "name": "findemes",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Personal finance app for Argentina: captures what you pay automatically and answers one question: how much is left until the 1st.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "check": "turbo run lint typecheck test build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @findemes/api db:generate",
+    "db:migrate": "pnpm --filter @findemes/api db:migrate",
+    "db:deploy": "pnpm --filter @findemes/api db:deploy",
+    "db:studio": "pnpm --filter @findemes/api db:studio",
+    "db:reset": "pnpm --filter @findemes/api db:reset"
+  },
+  "devDependencies": {
+    "@findemes/config": "workspace:*",
+    "prettier": "3.9.8",
+    "turbo": "2.11.2",
+    "typescript": "6.0.3"
+  }
+}

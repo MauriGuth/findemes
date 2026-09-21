@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# generated
+apps/api/src/generated/
+
+# env
+.env
+.env.*
+!.env.example
+
+# Expo / React Native
+.expo/
+expo-env.d.ts
+web-build/
+.metro-health-check*
+/apps/mobile/android/
+/apps/mobile/ios/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# logs and OS
+*.log
+npm-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+
+# local databases
+.pgdata/

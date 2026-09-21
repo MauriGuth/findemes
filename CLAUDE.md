@@ -1,4 +1,3 @@
-# findemes
 # CLAUDE.md — Findemes (nombre provisorio)
 
 ## Quién soy y cómo trabajamos
