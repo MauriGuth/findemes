@@ -7,3 +7,7 @@ pnpm-lock.yaml
 apps/api/src/generated
 apps/api/prisma/migrations
 CHANGELOG.md
+
+# The project brief; keep the author's formatting.
+CLAUDE.md
+docs/samples

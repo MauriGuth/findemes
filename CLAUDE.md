@@ -108,3 +108,24 @@ Foto (cámara o galería) → compresión on-device (máx 1600 px, JPEG 80) → 
 
 ## Muestras reales
 (vacío por ahora; las pego yo acá o en docs/samples/. Nunca inventes una muestra.)
+
+## Fase 0 — estado (2026-09-21)
+
+Cimientos hechos y verificados: monorepo, `shared` con tests, API con `/health`, migración `init`, Swagger, app Expo con pantalla placeholder, compose, CI y config de Railway. Setup en `README.md`. Decisiones en `docs/decisions/001` a `005`.
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- Node 22 · pnpm 10.33 (aislado, sin `hoisted`) · Turborepo 2.11 · TypeScript 6.0.3 (no 7) · ESLint 9 · Vitest 5.
+- API: NestJS 12 **en ESM** (imports con `.js`), validación zod nativa con `StandardSchemaValidationPipe` y `@Body({ schema })`, sin `nestjs-zod`. Prisma 7.10 pinneado exacto (`latest` en npm es un RC de la 8), generator `prisma-client` a `src/generated/prisma` (gitignored), adapter `pg`.
+- Mobile: Expo SDK 57 con las versiones que pinnea el SDK (`npx expo install --fix` manda). Identidad: `Findemes` / slug `findemes` / scheme `findemes` / `ar.com.novasolutions.findemes`. `eas init` lo corre Mauricio.
+- `shared`: dinero como string decimal (`"1234.56"`) sobre big.js con redondeo half-even; formato `$1.234,56` a mano (sin Intl); calendario con UTC-3 fijo. Se compila con `tsc` a `dist` y **todos** (API y Metro) consumen `dist`.
+- Redis: solo en docker compose; nada en Railway ni BullMQ en el código hasta la Fase 2 (ADR 005).
+- Migración inicial: modelo completo (ver `apps/api/prisma/schema.prisma`; ajustes respecto al punto de partida en ADR 003 y en los comentarios del schema).
+- Deploy: `apps/api/Dockerfile` con contexto en la raíz + `railway.json` en la raíz con `preDeployCommand: prisma migrate deploy`. Railway lo crea Mauricio desde el dashboard.
+
+**Trampas conocidas**:
+
+- SDK 57: `expo prebuild` borra `android/` e `ios/`. El módulo nativo de la Fase 2 vive en `apps/mobile/modules/` con un config plugin; nunca se editan esas carpetas a mano.
+- pnpm aislado: si una lib de RN no resuelve una dependencia transitiva (pasó con `react-native-css-interop` de NativeWind), se declara directa en `apps/mobile/package.json`.
+- `engine-strict` está apagado a propósito: dependencias del CLI de Nest pinnean el último patch de Node 22.
+- Los enums de `packages/shared/src/schemas/enums.ts` y los de `schema.prisma` se comparan en un test: al agregar un valor, se agrega en los dos.
