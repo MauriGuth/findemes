@@ -154,4 +154,5 @@ Loop manual completo y verificado: login por código de mail, movimientos a mano
 - Los e2e reemplazan `ThrottlerGuard` (registrado como provider + `APP_GUARD useExisting`) salvo en el test de 429; los mails de test terminan en `@e2e.findemes.test` y se purgan en `cleanupE2eData`.
 - Las rutas tipadas de expo-router (`.expo/types/router.d.ts`) solo se regeneran con `expo start`; `expo export` no las toca. Para matar Metro usar `pkill -f "expo [s]tart"`.
 - `eslint-config-expo` 57 prohíbe `setState` sincrónico dentro de `useEffect`: usar `key` para reiniciar estado local desde el servidor.
+- EAS bundlea desde un checkout limpio: `shared/dist` no existe hasta que corre el hook `eas-build-post-install` de `apps/mobile`. Sin ese hook el build falla en "Bundle JavaScript".
 - El pago del resumen se crea con `isStatementPayment` y el monto pendiente; no vincularlo a un compromiso.

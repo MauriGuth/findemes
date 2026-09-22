@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "export:android": "expo export --platform android --output-dir dist",
+    "eas-build-post-install": "pnpm --filter @findemes/shared build",
     "doctor": "expo-doctor"
   },
   "dependencies": {

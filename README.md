@@ -53,6 +53,8 @@ npx eas-cli@latest build --profile development --platform android
 
 Install the APK, run `pnpm dev` at the repo root and open the app. The `development` profile points the app at `http://10.0.2.2:3000` (Android emulator). On a physical phone set `EXPO_PUBLIC_API_URL` to your computer's LAN IP in `apps/mobile/.env` (see `.env.example`) before building, or leave it unset: in development the app falls back to the Metro host on port 3000.
 
+EAS installs the monorepo from a clean checkout, so the `eas-build-post-install` script in `apps/mobile/package.json` compiles `packages/shared` before Metro bundles (its `dist` is not in git).
+
 A rebuild is needed whenever a config plugin changes (`expo-secure-store` and `expo-notifications` were added in phase 1). To test against Railway, put the public domain in the `preview` profile of `eas.json` and build with `--profile preview`; the manual checklist is in [`docs/testing/phase-1-manual.md`](./docs/testing/phase-1-manual.md).
 
 ## Everyday commands
