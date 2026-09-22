@@ -121,7 +121,7 @@ Pushes that only touch `apps/mobile` or `docs` do not redeploy the API (`watchPa
 
 ### Mobile with EAS
 
-`eas.json` defines `development` (dev client, APK, local API), `preview` (APK, Railway API: replace the placeholder `EXPO_PUBLIC_API_URL`) and `production` (AAB). Nothing in this repo deploys to Vercel.
+`eas.json` defines `development` (dev client, APK, local API), `preview` (APK, Railway API at `findemesapi-production.up.railway.app`) and `production` (AAB). Nothing in this repo deploys to Vercel.
 
 ## Conventions
 

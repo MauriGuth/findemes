@@ -20,7 +20,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-RAILWAY-DOMAIN.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://findemesapi-production.up.railway.app"
       }
     },
     "production": {
