@@ -93,3 +93,122 @@ export function daysBetween(a: CalendarDate, b: CalendarDate): number {
 export function todayInArt(now: Date = new Date()): CalendarDate {
   return toArtCalendarDate(now);
 }
+
+// ─── Month keys and month math ───────────────────────────────────────────────
+
+export function parseMonthKey(key: MonthKey): CalendarDate {
+  const match = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!match) throw new RangeError(`Invalid month key: ${key}`);
+  const [, y, m] = match;
+  const month = Number(m);
+  if (month < 1 || month > 12) throw new RangeError(`Invalid month key: ${key}`);
+  return { year: Number(y), month, day: 1 };
+}
+
+/** Month key ("YYYY-MM") of an ISO date ("YYYY-MM-DD"). */
+export function monthKeyOfIso(iso: IsoDate): MonthKey {
+  return monthKey(parseIsoDate(iso));
+}
+
+/** Adds (or subtracts) months, clamping the day: 31/1 + 1 month = 28 or 29/2. */
+export function addMonths(date: CalendarDate, n: number): CalendarDate {
+  const total = date.year * 12 + (date.month - 1) + n;
+  const year = Math.floor(total / 12);
+  const month = total - year * 12 + 1;
+  return { year, month, day: Math.min(date.day, daysInMonth({ year, month })) };
+}
+
+/** Whole months from a to b (b − a): monthsBetween('2026-06', '2026-09') = 3. */
+export function monthsBetween(a: MonthKey, b: MonthKey): number {
+  const pa = parseMonthKey(a);
+  const pb = parseMonthKey(b);
+  return (pb.year - pa.year) * 12 + (pb.month - pa.month);
+}
+
+export function compareMonthKey(a: MonthKey, b: MonthKey): -1 | 0 | 1 {
+  const diff = monthsBetween(b, a);
+  return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+}
+
+export function previousMonthKey(key: MonthKey): MonthKey {
+  return monthKey(addMonths(parseMonthKey(key), -1));
+}
+
+export function nextMonthKey(key: MonthKey): MonthKey {
+  return monthKey(addMonths(parseMonthKey(key), 1));
+}
+
+export function endOfMonth(date: CalendarDate): CalendarDate {
+  return { year: date.year, month: date.month, day: daysInMonth(date) };
+}
+
+/** Day `day` of the given month, pulled back to the last day of shorter months. */
+export function clampDayOfMonth(
+  day: number,
+  month: Pick<CalendarDate, 'year' | 'month'>,
+): CalendarDate {
+  const last = daysInMonth(month);
+  return {
+    year: month.year,
+    month: month.month,
+    day: Math.min(Math.max(1, Math.trunc(day)), last),
+  };
+}
+
+export function addDays(date: CalendarDate, n: number): CalendarDate {
+  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + n));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+// ─── Ranges (half-open, in Argentina time) ──────────────────────────────────
+
+/** [00:00 ART of the 1st, 00:00 ART of the next 1st). */
+export function monthRange(key: MonthKey): { start: Date; end: Date } {
+  const first = parseMonthKey(key);
+  return { start: artMidnight(first), end: artMidnight(startOfNextMonth(first)) };
+}
+
+/** [00:00 ART, 00:00 ART of the next day). */
+export function dayRange(date: CalendarDate): { start: Date; end: Date } {
+  return { start: artMidnight(date), end: artMidnight(addDays(date, 1)) };
+}
+
+export function isInArtMonth(instant: Date, key: MonthKey): boolean {
+  const { start, end } = monthRange(key);
+  return instant.getTime() >= start.getTime() && instant.getTime() < end.getTime();
+}
+
+export function isInArtDay(instant: Date, date: CalendarDate): boolean {
+  const { start, end } = dayRange(date);
+  return instant.getTime() >= start.getTime() && instant.getTime() < end.getTime();
+}
+
+/**
+ * Days left to stretch the money in month `key` as seen from `today`:
+ * the current month counts today; a past month has 0; a future month has all its days.
+ */
+export function daysLeftForMonth(key: MonthKey, today: CalendarDate): number {
+  const cmp = compareMonthKey(key, monthKey(today));
+  if (cmp < 0) return 0;
+  if (cmp > 0) return daysInMonth(parseMonthKey(key));
+  return daysLeftInMonth(today);
+}
+
+// ─── DATE columns ────────────────────────────────────────────────────────────
+//
+// Postgres DATE columns come back from the pg adapter as a Date at 00:00 UTC.
+// They are calendar dates, not instants: convert them ONLY with UTC getters.
+// Passing them through toArtCalendarDate would shift them one day (and month) back.
+
+export function dateColumnToIso(value: Date): IsoDate {
+  return value.toISOString().slice(0, 10);
+}
+
+export function isoToDateColumn(iso: IsoDate): Date {
+  parseIsoDate(iso); // validates
+  return new Date(`${iso}T00:00:00Z`);
+}
