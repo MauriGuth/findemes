@@ -46,6 +46,8 @@ jobs:
       - name: Apply migrations to the CI database
         run: pnpm --filter @findemes/api db:deploy
       - run: pnpm turbo run lint typecheck test build
+      - name: Seed the catalog (same command Railway runs before each release)
+        run: pnpm --filter @findemes/api db:seed
       - name: API e2e (real Postgres)
         run: pnpm --filter @findemes/api test:e2e
       - run: pnpm format:check

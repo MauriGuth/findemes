@@ -14,7 +14,7 @@
     ]
   },
   "deploy": {
-    "preDeployCommand": ["node_modules/.bin/prisma migrate deploy"],
+    "preDeployCommand": "node_modules/.bin/prisma migrate deploy && node dist/seed.js",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

@@ -96,20 +96,23 @@ enum ReceiptStatus {
 // ─── Identity ────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid(7))
-  email     String   @unique
-  name      String?
-  timeZone  String   @default("America/Argentina/Buenos_Aires")
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  id                String   @id @default(uuid(7))
+  email             String   @unique
+  name              String?
+  timeZone          String   @default("America/Argentina/Buenos_Aires")
+  /// HH:MM in Argentina time; null = daily reminder off.
+  dailyReminderTime String?  @default("20:00")
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
 
-  devices      Device[]
-  rawEvents    RawEvent[]
-  transactions Transaction[]
-  receipts     Receipt[]
-  categories   Category[]
-  monthPlans   MonthPlan[]
-  commitments  Commitment[]
+  devices       Device[]
+  refreshTokens RefreshToken[]
+  rawEvents     RawEvent[]
+  transactions  Transaction[]
+  receipts      Receipt[]
+  categories    Category[]
+  monthPlans    MonthPlan[]
+  commitments   Commitment[]
 }
 
 model Device {
@@ -125,10 +128,51 @@ model Device {
   createdAt       DateTime       @default(now()) @db.Timestamptz
   updatedAt       DateTime       @updatedAt @db.Timestamptz
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rawEvents RawEvent[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rawEvents     RawEvent[]
+  refreshTokens RefreshToken[]
 
   @@index([userId])
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+/// One-time login code sent by email. No FK to User: the user may not exist yet.
+model LoginCode {
+  id         String    @id @default(uuid(7))
+  email      String
+  /// hex HMAC-SHA256(OTP_PEPPER, `${email}\n${code}`)
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @db.Timestamptz
+  consumedAt DateTime? @db.Timestamptz
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+
+  @@index([email, createdAt(sort: Desc)])
+  @@index([expiresAt])
+}
+
+/// Opaque rotating refresh token. Reusing a revoked token revokes its whole family.
+model RefreshToken {
+  id              String    @id @default(uuid(7))
+  userId          String
+  deviceId        String?
+  /// hex sha256 of the opaque token
+  tokenHash       String    @unique
+  familyId        String
+  /// Copied on every rotation: the family dies REFRESH_FAMILY_MAX_DAYS after the login.
+  familyCreatedAt DateTime  @db.Timestamptz
+  expiresAt       DateTime  @db.Timestamptz
+  revokedAt       DateTime? @db.Timestamptz
+  replacedById    String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
 }
 
 // ─── Catalog (system tables, no userId) ──────────────────────────────────────
@@ -237,39 +281,50 @@ model RawEvent {
 // ─── Money ───────────────────────────────────────────────────────────────────
 
 model Transaction {
-  id           String               @id @default(uuid(7))
-  userId       String
-  sourceId     String?
-  amount       Decimal              @db.Decimal(18, 2)
-  currency     Currency             @default(ARS)
-  direction    TransactionDirection
-  method       PaymentMethod
-  merchantRaw  String?
-  merchantNorm String?
-  categoryId   String?
-  occurredAt   DateTime             @db.Timestamptz
-  capturedAt   DateTime             @default(now()) @db.Timestamptz
-  status       TransactionStatus    @default(PENDING)
+  id                 String               @id @default(uuid(7))
+  userId             String
+  sourceId           String?
+  amount             Decimal              @db.Decimal(18, 2)
+  currency           Currency             @default(ARS)
+  direction          TransactionDirection
+  method             PaymentMethod
+  merchantRaw        String?
+  merchantNorm       String?
+  categoryId         String?
+  occurredAt         DateTime             @db.Timestamptz
+  capturedAt         DateTime             @default(now()) @db.Timestamptz
+  status             TransactionStatus    @default(PENDING)
   /// 0.00–1.00; >= 0.90 confirms automatically, 0.60–0.89 asks the user.
-  confidence   Decimal              @default(1) @db.Decimal(3, 2)
-  origin       TransactionOrigin
+  confidence         Decimal              @default(1) @db.Decimal(3, 2)
+  origin             TransactionOrigin
   /// hash(userId, sourceId, amount, occurredAt rounded to 2 min, merchantNorm) for dedup.
-  fingerprint  String
-  rawEventId   String?              @unique
-  receiptId    String?              @unique
-  note         String?
-  createdAt    DateTime             @default(now()) @db.Timestamptz
-  updatedAt    DateTime             @updatedAt @db.Timestamptz
+  fingerprint        String
+  rawEventId         String?              @unique
+  receiptId          String?              @unique
+  note               String?
+  /// Transfer between the user's own accounts: never income nor expense.
+  isOwnTransfer      Boolean              @default(false)
+  /// Set when this movement pays a Commitment.
+  commitmentId       String?
+  /// First day of the month the payment settles (may differ from occurredAt's month). Required with commitmentId.
+  commitmentMonth    DateTime?            @db.Date
+  /// Cash payment of the previous month's credit card statement.
+  isStatementPayment Boolean              @default(false)
+  createdAt          DateTime             @default(now()) @db.Timestamptz
+  updatedAt          DateTime             @updatedAt @db.Timestamptz
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  source   Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  rawEvent RawEvent? @relation(fields: [rawEventId], references: [id], onDelete: SetNull)
-  receipt  Receipt?  @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source       Source?     @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  category     Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  rawEvent     RawEvent?   @relation(fields: [rawEventId], references: [id], onDelete: SetNull)
+  receipt      Receipt?    @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  commitment   Commitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  salaryOfPlan MonthPlan?  @relation("MonthPlanSalary")
 
   @@unique([userId, fingerprint])
   @@index([userId, occurredAt(sort: Desc)])
   @@index([userId, status])
+  @@index([commitmentId, commitmentMonth])
 }
 
 model Receipt {
@@ -318,18 +373,19 @@ model ReceiptItem {
 // ─── Planning ("Hasta el 1") ─────────────────────────────────────────────────
 
 model MonthPlan {
-  id              String   @id @default(uuid(7))
-  userId          String
+  id                  String   @id @default(uuid(7))
+  userId              String
   /// First day of the month, as a date.
-  month           DateTime @db.Date
-  expectedIncome  Decimal  @db.Decimal(18, 2)
-  currency        Currency @default(ARS)
-  /// True once the user confirmed which credit was the salary.
-  incomeConfirmed Boolean  @default(false)
-  createdAt       DateTime @default(now()) @db.Timestamptz
-  updatedAt       DateTime @updatedAt @db.Timestamptz
+  month               DateTime @db.Date
+  expectedIncome      Decimal  @db.Decimal(18, 2)
+  currency            Currency @default(ARS)
+  /// The credit the user confirmed as this month's salary (may have occurredAt outside the month).
+  salaryTransactionId String?  @unique
+  createdAt           DateTime @default(now()) @db.Timestamptz
+  updatedAt           DateTime @updatedAt @db.Timestamptz
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salaryTransaction Transaction? @relation("MonthPlanSalary", fields: [salaryTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([userId, month])
 }
@@ -343,11 +399,14 @@ model Commitment {
   name              String
   amount            Decimal        @db.Decimal(18, 2)
   currency          Currency       @default(ARS)
+  /// CREDIT goes to next statement; anything else leaves cash this month.
+  method            PaymentMethod  @default(DEBIT)
   /// 1-31; clamped to the last day of shorter months.
   dayOfMonth        Int
   installmentsTotal Int?
-  installmentsLeft  Int?
-  nextDueOn         DateTime?      @db.Date
+  /// First day of the first month this applies to (API normalizes to day 1).
+  startsOn          DateTime       @db.Date
+  /// First day of the last month this applies to; null = open-ended. INSTALLMENT: recomputed on every write as startsOn + (installmentsTotal - 1) months.
   endsOn            DateTime?      @db.Date
   sourceId          String?
   categoryId        String?
@@ -355,9 +414,10 @@ model Commitment {
   createdAt         DateTime       @default(now()) @db.Timestamptz
   updatedAt         DateTime       @updatedAt @db.Timestamptz
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  source   Source?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source   Source?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  payments Transaction[]
 
   @@index([userId, active])
 }
