@@ -1,4 +1,10 @@
-import { dateColumnToIso, type IsoDate, type MoneyAmount, type MonthKey } from '@findemes/shared';
+import {
+  dateColumnToIso,
+  type IsoDate,
+  isoToDateColumn,
+  type MoneyAmount,
+  type MonthKey,
+} from '@findemes/shared';
 
 import { type Prisma } from '../generated/prisma/client.js';
 
@@ -19,4 +25,9 @@ export function dateToIso(value: Date): IsoDate {
 /** DATE column holding the 1st of a month → "YYYY-MM". */
 export function dateToMonthKey(value: Date): MonthKey {
   return dateColumnToIso(value).slice(0, 7);
+}
+
+/** "YYYY-MM" → DATE column holding the 1st of that month. */
+export function monthKeyToDate(key: MonthKey): Date {
+  return isoToDateColumn(`${key}-01`);
 }

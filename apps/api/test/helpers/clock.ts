@@ -11,6 +11,11 @@ export class FakeClock implements Clock {
     this.offsetMs += ms;
   }
 
+  /** Pin "now" to an instant (the offset keeps ticking from there). */
+  set(at: Date): void {
+    this.offsetMs = at.getTime() - Date.now();
+  }
+
   reset(): void {
     this.offsetMs = 0;
   }
