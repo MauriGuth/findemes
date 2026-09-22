@@ -13,7 +13,7 @@ import {
 } from '@findemes/shared';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
 import { MoneyInput } from '@/components/MoneyInput';
 import { Button, Chip, ErrorText, Muted, Row, TextField } from '@/components/ui';
@@ -391,7 +391,6 @@ export function TransactionForm({ existing, onDone }: Props) {
         ) : null}
 
         <ErrorText>{error}</ErrorText>
-        <Text className="hidden">{mode}</Text>
       </ScrollView>
       <View className="absolute bottom-0 left-0 right-0 bg-ink px-6 pb-6 pt-2">
         <Button
