@@ -17,3 +17,16 @@ export const IsoDateSchema = z.iso.date({ error: 'Fecha inválida' });
 export const MonthKeySchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'El mes tiene que tener el formato AAAA-MM');
+
+/** Amount strictly greater than zero. */
+export const PositiveMoneySchema = MoneyAmountSchema.refine(
+  (value) => !value.startsWith('-') && /[1-9]/.test(value),
+  {
+    error: 'El monto tiene que ser mayor a cero',
+  },
+);
+
+/** Amount greater than or equal to zero. */
+export const NonNegativeMoneySchema = MoneyAmountSchema.refine((value) => !value.startsWith('-'), {
+  error: 'El monto no puede ser negativo',
+});

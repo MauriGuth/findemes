@@ -22,6 +22,11 @@ const valid = {
   rawEventId: null,
   receiptId: null,
   note: null,
+  isOwnTransfer: false,
+  commitmentId: null,
+  commitmentMonth: null,
+  isStatementPayment: false,
+  isSalary: false,
   createdAt: '2026-09-21T15:04:06.000Z',
   updatedAt: '2026-09-21T15:04:06.000Z',
 };
@@ -42,14 +47,22 @@ describe('TransactionSchema', () => {
 describe('CreateTransactionSchema', () => {
   it('fills defaults for a quick manual entry', () => {
     const result = CreateTransactionSchema.parse({ amount: '500', method: 'CASH' });
-    expect(result).toEqual({ amount: '500', method: 'CASH', currency: 'ARS', direction: 'OUT' });
+    expect(result).toEqual({
+      amount: '500',
+      method: 'CASH',
+      currency: 'ARS',
+      direction: 'OUT',
+      isOwnTransfer: false,
+      isStatementPayment: false,
+      markAsSalary: false,
+    });
   });
 
   it('explains errors in Spanish', () => {
     const result = CreateTransactionSchema.safeParse({ amount: '-500', method: 'CASH' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toContain('positivo');
+      expect(result.error.issues[0]?.message).toBe('El monto tiene que ser mayor a cero');
     }
   });
 
