@@ -64,6 +64,7 @@ export function useTransaction(id: string) {
   return useQuery({
     queryKey: keys.transaction(id),
     queryFn: () => apiGet<Transaction>(`/transactions/${id}`),
+    enabled: id.length > 0,
   });
 }
 
@@ -91,6 +92,12 @@ export function useCommitments(includeInactive = false) {
         )
       ).items,
   });
+}
+
+/** One commitment (active or not), from the full list so the edit screen shares the cache. */
+export function useCommitment(id: string) {
+  const all = useCommitments(true);
+  return { ...all, data: all.data?.find((c) => c.id === id) ?? null };
 }
 
 export function useCatalog() {
