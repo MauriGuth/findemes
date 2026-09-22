@@ -54,7 +54,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
-    // Filled by `eas init` (see README). Kept out of git on purpose until then.
-    eas: {},
+    eas: { projectId: '116b28aa-b3d8-4d21-a3dd-bfa722d8de1f' },
   },
 });

@@ -47,7 +47,7 @@ Expo Go does not work (there will be a native module in phase 2); you need a **d
 
 ```bash
 cd apps/mobile
-npx eas-cli@latest init                       # once: links the app to your Expo account
+npx eas-cli@latest login                      # your Expo account (the project is already linked)
 npx eas-cli@latest build --profile development --platform android
 ```
 
