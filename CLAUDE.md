@@ -129,3 +129,29 @@ Cimientos hechos y verificados: monorepo, `shared` con tests, API con `/health`,
 - pnpm aislado: si una lib de RN no resuelve una dependencia transitiva (pasó con `react-native-css-interop` de NativeWind), se declara directa en `apps/mobile/package.json`.
 - `engine-strict` está apagado a propósito: dependencias del CLI de Nest pinnean el último patch de Node 22.
 - Los enums de `packages/shared/src/schemas/enums.ts` y los de `schema.prisma` se comparan en un test: al agregar un valor, se agrega en los dos.
+
+## Fase 1 — estado (2026-09-22)
+
+Loop manual completo y verificado: login por código de mail, movimientos a mano, plan del mes y compromisos, header "Te quedan $X hasta el 1" desde `computeMonthSummary` (función pura con golden tests, ADR 007), recordatorio diario local (ADR 008). Auth en ADR 006. Checklist manual en `docs/testing/phase-1-manual.md`; borrador de privacidad en `docs/privacy/`.
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- Auth sin contraseña ni passport: OTP por mail (3 códigos vivos, 5 intentos por código, 20 fallos por mail y día), access JWT de 15 min `{ sub, sid }`, refresh opaco rotativo con familias (30 días, tope 180, reclamo atómico, gracia de 60 s). `JwtAuthGuard` valida la familia en cada request. Sin bypass de desarrollo: el código sale por `MAIL_PROVIDER=console`.
+- Mail por `MailProvider` (`console` | `fake` | `resend` con `fetch`). Resend sin dominio verificado solo entrega al mail de la cuenta.
+- Modelo: `LoginCode` y `RefreshToken`; `MonthPlan.salaryTransactionId` (sin `incomeConfirmed`); `Transaction.isOwnTransfer / commitmentId / commitmentMonth / isStatementPayment`; `Commitment.method / startsOn / endsOn` (sin contadores: la cuota N de M se deriva del calendario); `User.dailyReminderTime`. Migración `20260922010000_phase1_auth_and_planning`.
+- Regla de fechas: columnas `@db.Date` solo con `dateColumnToIso`/`isoToDateColumn` (UTC); `toArtCalendarDate` solo para `timestamptz` y el reloj.
+- Fórmula: `remaining = ingreso − gastos cash − compromisos cash impagos − resumen anterior impago`; OUT PENDING resta, IN PENDING no suma; vincular un pago no mueve `remaining`; `statement.next = crédito del mes + compromisos crédito impagos`.
+- Ingresos se clasifican al cargar (Mi sueldo / Otro ingreso / Entre mis cuentas); un IN sin clasificar nace PENDING y es candidato a sueldo.
+- Compra en cuotas con tarjeta = un `Commitment INSTALLMENT CREDIT`, sin transacción por el total (`POST /transactions/installments`).
+- "Pagué" = `POST /commitments/:id/payments` (409 si ya está saldado ese mes); pagos parciales por `POST /transactions` con `commitmentId`.
+- Seed idempotente (`node dist/seed.js`) en el `preDeployCommand` de Railway y en CI después del build. 16 Sources sin `packageName` (se fijan en Fase 2 con muestras reales) y 16 categorías de sistema.
+- Mobile: `Stack.Protected` con zustand + expo-secure-store; `apiRequest` con refresh single-flight; tabs Inicio · Tu mes · Ajustes; recordatorio con canal `daily-summary` PRIVATE, permiso solo al prender el toggle, sin `SCHEDULE_EXACT_ALARM`; `eas.json` `preview` apunta a Railway.
+- Deploy: Railway con `railway.json` como config-as-code (sin build/start command custom en el dashboard, un solo servicio para la API). Nada en Vercel.
+
+**Trampas conocidas**:
+
+- `prisma migrate dev` no corre sin TTY: la migración se genera con `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` y se aplica con `migrate deploy`.
+- Los e2e reemplazan `ThrottlerGuard` (registrado como provider + `APP_GUARD useExisting`) salvo en el test de 429; los mails de test terminan en `@e2e.findemes.test` y se purgan en `cleanupE2eData`.
+- Las rutas tipadas de expo-router (`.expo/types/router.d.ts`) solo se regeneran con `expo start`; `expo export` no las toca. Para matar Metro usar `pkill -f "expo [s]tart"`.
+- `eslint-config-expo` 57 prohíbe `setState` sincrónico dentro de `useEffect`: usar `key` para reiniciar estado local desde el servidor.
+- El pago del resumen se crea con `isStatementPayment` y el monto pendiente; no vincularlo a un compromiso.
