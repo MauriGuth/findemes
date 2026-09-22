@@ -1,29 +1,21 @@
-import { type Server } from 'node:http';
-
-import { type INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AppModule } from '../src/app.module.js';
-import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
+import { createTestApp, type TestApp } from './helpers/app.js';
 
 describe('GET /health (e2e)', () => {
-  let app: INestApplication<Server>;
+  let ctx: TestApp;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalFilters(new HttpExceptionFilter());
-    await app.init();
+    ctx = await createTestApp();
   });
 
   afterAll(async () => {
-    await app.close();
+    await ctx.close();
   });
 
   it('reports the process and the database as up', async () => {
-    const response = await request(app.getHttpServer()).get('/health').expect(200);
+    const response = await request(ctx.app.getHttpServer()).get('/health').expect(200);
     expect(response.body).toMatchObject({
       status: 'ok',
       info: {
@@ -34,7 +26,7 @@ describe('GET /health (e2e)', () => {
   });
 
   it('answers unknown routes with a Spanish 404', async () => {
-    const response = await request(app.getHttpServer()).get('/nope').expect(404);
+    const response = await request(ctx.app.getHttpServer()).get('/nope').expect(404);
     expect(response.body).toMatchObject({
       statusCode: 404,
       message: 'No encontramos lo que buscás.',

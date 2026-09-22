@@ -9,7 +9,18 @@
     "SWAGGER_ENABLED",
     "EXPO_PUBLIC_*",
     "EXPO_*",
-    "EAS_*"
+    "EAS_*",
+    "JWT_SECRET",
+    "JWT_ACCESS_TTL_SECONDS",
+    "REFRESH_TTL_DAYS",
+    "REFRESH_FAMILY_MAX_DAYS",
+    "OTP_PEPPER",
+    "OTP_TTL_MINUTES",
+    "OTP_GLOBAL_DAILY_CAP",
+    "MAIL_PROVIDER",
+    "RESEND_API_KEY",
+    "MAIL_FROM",
+    "E2E_ALLOW_REMOTE_DB"
   ],
   "tasks": {
     "db:generate": {
