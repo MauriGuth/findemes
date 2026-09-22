@@ -31,6 +31,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-dev-client',
+    'expo-secure-store',
+    // Local notifications only. No defaultChannel here: that option is for FCM push.
+    ['expo-notifications', { icon: './assets/android-icon-monochrome.png', color: '#22C55E' }],
     [
       'expo-splash-screen',
       {
