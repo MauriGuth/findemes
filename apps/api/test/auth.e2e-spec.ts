@@ -36,7 +36,7 @@ describe('auth (e2e)', () => {
     expect(ctx.mail.sent.at(-1)?.subject).toBe(`${code} es tu código de Findemes`);
     await api()
       .post('/auth/request-code')
-      .send({ email: 'nobody@example.invalid' })
+      .send({ email: e2eEmail('unknown') })
       .expect(200, { ok: true });
   });
 
