@@ -35,6 +35,9 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://findemes:findemes@localhost:5432/findemes
+      JWT_SECRET: test-only-jwt-secret-for-ci-000000000000000000000
+      OTP_PEPPER: test-only-otp-pepper-for-ci-00000000000000000000
+      MAIL_PROVIDER: fake
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
