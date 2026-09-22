@@ -33,5 +33,6 @@ export function assertLocalDatabase(): void {
 
 /** Deletes everything the e2e tests created. Cascades from User cover the rest. */
 export async function cleanupE2eData(prisma: PrismaService): Promise<void> {
+  await prisma.loginCode.deleteMany({ where: { email: { endsWith: `@${E2E_EMAIL_DOMAIN}` } } });
   await prisma.user.deleteMany({ where: { email: { endsWith: `@${E2E_EMAIL_DOMAIN}` } } });
 }

@@ -8,10 +8,13 @@ import {
 } from '@nestjs/terminus';
 import { SkipThrottle } from '@nestjs/throttler';
 
+import { Public } from '../auth/public.decorator.js';
+
 import { PrismaService } from '../prisma/prisma.service.js';
 import { APP_VERSION } from '../version.js';
 
 @ApiTags('health')
+@Public()
 @SkipThrottle()
 @Controller('health')
 export class HealthController {

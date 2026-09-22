@@ -1,11 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { type Category, CategorySchema, type Source, SourceSchema } from '@findemes/shared';
 import { z } from 'zod';
 
+import { type AuthUser, CurrentUser } from '../auth/current-user.decorator.js';
 import { CatalogService } from './catalog.service.js';
 
 @ApiTags('catalog')
+@ApiBearerAuth()
 @Controller('catalog')
 export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
@@ -17,10 +19,10 @@ export class CatalogController {
     return this.catalog.listSources();
   }
 
-  /** System categories (user-created ones arrive with auth). */
+  /** System categories plus the user's own. */
   @Get('categories')
   @ApiOkResponse({ standardSchema: z.array(CategorySchema) })
-  categories(): Promise<Category[]> {
-    return this.catalog.listCategories();
+  categories(@CurrentUser() user: AuthUser): Promise<Category[]> {
+    return this.catalog.listCategories(user.id);
   }
 }

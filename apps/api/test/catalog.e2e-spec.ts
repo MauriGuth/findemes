@@ -3,12 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { seedCatalog } from '../src/seed/catalog.seed.js';
 import { createTestApp, type TestApp } from './helpers/app.js';
+import { loginAs, type TestSession } from './helpers/auth.js';
 
 describe('catalog (e2e)', () => {
   let ctx: TestApp;
+  let session: TestSession;
 
   beforeAll(async () => {
     ctx = await createTestApp();
+    session = await loginAs(ctx);
   });
 
   afterAll(async () => {
@@ -23,7 +26,10 @@ describe('catalog (e2e)', () => {
   });
 
   it('lists the sources without package names', async () => {
-    const response = await request(ctx.app.getHttpServer()).get('/catalog/sources').expect(200);
+    const response = await request(ctx.app.getHttpServer())
+      .get('/catalog/sources')
+      .set(session.auth)
+      .expect(200);
     expect(response.body).toHaveLength(16);
     expect(response.body[0]).toEqual({
       id: expect.any(String),
@@ -36,7 +42,10 @@ describe('catalog (e2e)', () => {
   });
 
   it('lists the system categories in display order', async () => {
-    const response = await request(ctx.app.getHttpServer()).get('/catalog/categories').expect(200);
+    const response = await request(ctx.app.getHttpServer())
+      .get('/catalog/categories')
+      .set(session.auth)
+      .expect(200);
     expect(response.body).toHaveLength(16);
     expect(response.body[0]).toMatchObject({ slug: 'supermercado', icon: '🛒', userId: null });
     expect(response.body.at(-1)).toMatchObject({ slug: 'otros' });

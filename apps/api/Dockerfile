@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # Build context is the repository root:  docker build -f apps/api/Dockerfile .
 # Railway picks this up through railway.json (dockerfilePath).
 
@@ -16,8 +15,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/config/package.json packages/config/
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@findemes/api..."
+RUN pnpm install --frozen-lockfile --filter "@findemes/api..."
 
 # ─── build: shared → prisma client → nest ─────────────────────────────────────
 FROM deps AS build
@@ -28,9 +26,8 @@ COPY apps/api apps/api
 RUN pnpm --filter @findemes/shared build \
  && pnpm --filter @findemes/api db:generate \
  && pnpm --filter @findemes/api build
-# Drop dev dependencies from node_modules (offline, from the store).
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter "@findemes/api..."
+# Drop dev dependencies from node_modules (offline, from the store kept in this stage).
+RUN pnpm install --frozen-lockfile --prod --filter "@findemes/api..."
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runtime
