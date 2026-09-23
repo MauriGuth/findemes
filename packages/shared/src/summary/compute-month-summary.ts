@@ -10,6 +10,7 @@ import {
   sumMoney,
 } from '../money/money.js';
 import { type PaymentMethod } from '../schemas/enums.js';
+import { findReviewPairs } from './review-pairs.js';
 import {
   commitmentAppliesToMonth,
   commitmentIsCash,
@@ -166,8 +167,12 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   );
 
   // ── what the app must ask the user ──
+  const review = findReviewPairs(input.transactions.filter(inMonth));
+  const pairedIns = new Set(review.ownTransferPairs.map((p) => p.inId));
   const salaryCandidateIds = eligibleInMonth
-    .filter((t) => t.direction === 'IN' && t.status === 'PENDING' && !t.isSalary)
+    .filter(
+      (t) => t.direction === 'IN' && t.status === 'PENDING' && !t.isSalary && !pairedIns.has(t.id),
+    )
     .map((t) => t.id);
 
   return {
@@ -190,6 +195,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
       salaryCandidateIds,
       needsStatementPayment: !statementPaid,
       unpaidDueCommitmentIds,
+      ...review,
     },
   };
 }

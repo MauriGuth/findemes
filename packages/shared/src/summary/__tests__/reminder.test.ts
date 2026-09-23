@@ -39,6 +39,8 @@ const summary = computeMonthSummary({
       commitmentMonth: null,
       isStatementPayment: false,
       isSalary: false,
+      origin: 'MANUAL',
+      sourceId: null,
     },
     {
       id: 't-2',
@@ -53,6 +55,8 @@ const summary = computeMonthSummary({
       commitmentMonth: null,
       isStatementPayment: false,
       isSalary: false,
+      origin: 'MANUAL',
+      sourceId: null,
     },
   ],
 });

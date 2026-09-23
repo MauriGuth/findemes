@@ -128,6 +128,8 @@ export class InsightsService {
       commitmentMonth: t.commitmentMonth ? dateToMonthKey(t.commitmentMonth) : null,
       isStatementPayment: t.isStatementPayment,
       isSalary: t.salaryOfPlan !== null,
+      origin: t.origin,
+      sourceId: t.sourceId,
     }));
   }
 }

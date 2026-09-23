@@ -190,6 +190,48 @@ describe('ingest (e2e)', () => {
     ]);
   });
 
+  it('surfaces detected movements and own-transfer pairs in the summary, and PATCH resolves them', async () => {
+    const other = await createE2eSource(ctx.prisma);
+    const session = await loginAs(ctx);
+    const ingest = await enable(session);
+    await send(ingest, [
+      item('E2E QUIZAS $300 EN Algo'),
+      item('E2E GASTO $80.000 EN Transferencia a mi otra cuenta'),
+      item('E2E RECIBISTE $ 80.000', { packageName: other.packageName }),
+    ]);
+    const summary = async () =>
+      (await api().get('/insights/summary?month=2026-09').set(session.auth).expect(200)).body as {
+        pending: {
+          reviewTransactionIds: string[];
+          ownTransferPairs: { outId: string; inId: string }[];
+          salaryCandidateIds: string[];
+        };
+      };
+
+    const before = await summary();
+    expect(before.pending.reviewTransactionIds).toHaveLength(1);
+    expect(before.pending.ownTransferPairs).toHaveLength(1);
+    expect(before.pending.salaryCandidateIds).toEqual([]);
+
+    const [pair] = before.pending.ownTransferPairs;
+    for (const id of [pair?.outId, pair?.inId]) {
+      await api()
+        .patch(`/transactions/${id ?? ''}`)
+        .set(session.auth)
+        .send({ isOwnTransfer: true, status: 'CONFIRMED' })
+        .expect(200);
+    }
+    await api()
+      .patch(`/transactions/${before.pending.reviewTransactionIds[0] ?? ''}`)
+      .set(session.auth)
+      .send({ status: 'CONFIRMED' })
+      .expect(200);
+
+    const after = await summary();
+    expect(after.pending.reviewTransactionIds).toEqual([]);
+    expect(after.pending.ownTransferPairs).toEqual([]);
+  });
+
   it('validates the batch', async () => {
     const session = await loginAs(ctx);
     const ingest = await enable(session);

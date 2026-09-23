@@ -5,6 +5,7 @@ import {
   type Currency,
   type PaymentMethod,
   type TransactionDirection,
+  type TransactionOrigin,
   type TransactionStatus,
 } from '../schemas/enums.js';
 
@@ -24,6 +25,9 @@ export interface SummaryTransactionInput {
   isStatementPayment: boolean;
   /** Linked as the salary of SOME MonthPlan (back-relation). */
   isSalary: boolean;
+  /** MANUAL, or detected from a notification (TEMPLATE / LLM). */
+  origin: TransactionOrigin;
+  sourceId: string | null;
 }
 
 export interface SummaryCommitmentInput {
@@ -107,5 +111,9 @@ export interface MonthSummary {
     salaryCandidateIds: string[];
     needsStatementPayment: boolean;
     unpaidDueCommitmentIds: string[];
+    /** Detected expenses to confirm (Phase 2). */
+    reviewTransactionIds: string[];
+    ownTransferPairs: { outId: string; inId: string }[];
+    possibleDuplicatePairs: { autoId: string; manualId: string }[];
   };
 }

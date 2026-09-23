@@ -27,6 +27,8 @@ function tx(
     commitmentMonth: null,
     isStatementPayment: false,
     isSalary: false,
+    origin: 'MANUAL',
+    sourceId: null,
     ...partial,
   };
 }

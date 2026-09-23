@@ -62,6 +62,9 @@ export const MonthSummarySchema = z
       salaryCandidateIds: z.array(UuidSchema),
       needsStatementPayment: z.boolean(),
       unpaidDueCommitmentIds: z.array(UuidSchema),
+      reviewTransactionIds: z.array(UuidSchema),
+      ownTransferPairs: z.array(z.object({ outId: UuidSchema, inId: UuidSchema })),
+      possibleDuplicatePairs: z.array(z.object({ autoId: UuidSchema, manualId: UuidSchema })),
     }),
   })
   .meta({ id: 'MonthSummary' });
