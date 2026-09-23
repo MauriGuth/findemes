@@ -180,6 +180,7 @@ Todo lo que no depende de muestras está hecho y verificado localmente: módulo 
 **Trampas conocidas**:
 
 - Cambios en `modules/notification-capture` requieren rebuild del dev client (`--profile development`); cambios de JS no.
+- Metro consume `shared/dist`: después de un `git pull` que toca `shared`, un Metro viejo o un `dist` desactualizado dejan al dev client en "Unable to load script". `pnpm dev:railway` ahora compila `shared` antes de arrancar; si persiste, `pnpm dev:railway --clear` y mismo Wi-Fi que la Mac.
 - Android 13+ con APK fuera de Play: el acceso a notificaciones aparece como "Configuración restringida" hasta habilitarlo desde la info de la app. La app lo explica.
 - "Forzar detención" desengancha el listener hasta abrir la app; deslizarla de recientes no.
 - `fieldMap` es `jsonb`: Postgres reordena las claves, así que el seed compara con `stableJson`; sin eso, cada deploy publicaba una versión nueva de cada template.
