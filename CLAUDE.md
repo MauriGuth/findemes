@@ -126,7 +126,7 @@ Cimientos hechos y verificados: monorepo, `shared` con tests, API con `/health`,
 **Trampas conocidas**:
 
 - SDK 57: `expo prebuild` borra `android/` e `ios/`. El módulo nativo de la Fase 2 vive en `apps/mobile/modules/` con un config plugin; nunca se editan esas carpetas a mano.
-- pnpm aislado: si una lib de RN no resuelve una dependencia transitiva (pasó con `react-native-css-interop` de NativeWind), se declara directa en `apps/mobile/package.json`.
+- pnpm aislado: si una lib de RN no resuelve una dependencia transitiva (pasó con `react-native-css-interop` de NativeWind y con `babel-preset-expo` en EAS Build), se declara directa en `apps/mobile/package.json`.
 - `engine-strict` está apagado a propósito: dependencias del CLI de Nest pinnean el último patch de Node 22.
 - Los enums de `packages/shared/src/schemas/enums.ts` y los de `schema.prisma` se comparan en un test: al agregar un valor, se agrega en los dos.
 
