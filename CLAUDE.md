@@ -156,4 +156,6 @@ Loop manual completo y verificado: login por código de mail, movimientos a mano
 - Un grupo de expo-router sin `index` abre la primera ruta en orden alfabético: `(auth)` y `(app)` declaran `unstable_settings.initialRouteName` en su `_layout`.
 - `eslint-config-expo` 57 prohíbe `setState` sincrónico dentro de `useEffect`: usar `key` para reiniciar estado local desde el servidor.
 - EAS bundlea desde un checkout limpio: `shared/dist` no existe hasta que corre el hook `eas-build-post-install` de `apps/mobile`. Sin ese hook el build falla en "Bundle JavaScript".
+- Railway: si un deploy no muestra el paso **Pre-deploy**, las migraciones no corrieron (pasó en el primer deploy: `/health` verde y todo lo demás en 500). Revisar Settings → Deploy → Pre-deploy Command.
+- Los montos se tipean con `MoneyInput`, que formatea en vivo con `formatTypedAmount` de `shared` ("3.000.000", coma para centavos); no usar `TextField` para plata.
 - El pago del resumen se crea con `isStatementPayment` y el monto pendiente; no vincularlo a un compromiso.

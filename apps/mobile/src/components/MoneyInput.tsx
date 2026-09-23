@@ -1,4 +1,4 @@
-import { formatArs, parseArs } from '@findemes/shared';
+import { amountToTypedDisplay, compareMoney, formatTypedAmount } from '@findemes/shared';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
@@ -13,19 +13,25 @@ interface Props {
   autoFocus?: boolean;
 }
 
-/** Big amount field: the user types "1234,5", we keep "1234.50" and show "$1.234,50" while idle. */
+function sameAmount(a: string, b: string): boolean {
+  if (a === '' || b === '') return a === b;
+  return compareMoney(a, b) === 0;
+}
+
+/** Big amount field that groups thousands while typing: "3000000" shows as "3.000.000". */
 export function MoneyInput({ value, onChange, currency = 'ARS', error, autoFocus }: Props) {
-  const [raw, setRaw] = useState(
-    value ? formatArs(value, { cents: false }).replace(/^\$/, '') : '',
-  );
-  const [focused, setFocused] = useState(false);
+  const [typed, setTyped] = useState(() => amountToTypedDisplay(value));
+
+  // The parent may set the amount itself (a prefilled payment): follow it unless it is what we typed.
+  const display = sameAmount(formatTypedAmount(typed).amount, value)
+    ? typed
+    : amountToTypedDisplay(value);
 
   const onChangeText = (text: string) => {
-    setRaw(text);
-    onChange(parseArs(text) ?? '');
+    const next = formatTypedAmount(text);
+    setTyped(next.display);
+    onChange(next.amount);
   };
-
-  const display = focused || !value ? raw : formatArs(value).replace(/^-?\$/, '');
 
   return (
     <View className="gap-1">
@@ -36,8 +42,6 @@ export function MoneyInput({ value, onChange, currency = 'ARS', error, autoFocus
         <TextInput
           value={display}
           onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           keyboardType="decimal-pad"
           placeholder="0"
           placeholderTextColor="#64748B"
