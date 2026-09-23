@@ -145,7 +145,7 @@ Loop manual completo y verificado: login por código de mail, movimientos a mano
 - Compra en cuotas con tarjeta = un `Commitment INSTALLMENT CREDIT`, sin transacción por el total (`POST /transactions/installments`).
 - "Pagué" = `POST /commitments/:id/payments` (409 si ya está saldado ese mes); pagos parciales por `POST /transactions` con `commitmentId`.
 - Seed idempotente (`node dist/seed.js`) en el `preDeployCommand` de Railway y en CI después del build. 16 Sources sin `packageName` (se fijan en Fase 2 con muestras reales) y 16 categorías de sistema.
-- Mobile: `Stack.Protected` con zustand + expo-secure-store; `apiRequest` con refresh single-flight; tabs Inicio · Tu mes · Ajustes; recordatorio con canal `daily-summary` PRIVATE, permiso solo al prender el toggle, sin `SCHEDULE_EXACT_ALARM`; `eas.json` `preview` apunta a Railway.
+- Mobile: `Stack.Protected` con zustand + expo-secure-store; `apiRequest` con refresh single-flight; tabs Inicio · Tu mes · Ajustes; recordatorio con canal `daily-summary` PRIVATE, permiso solo al prender el toggle, sin `SCHEDULE_EXACT_ALARM`; `eas.json` `development` y `preview` apuntan a Railway; para iterar se usa el dev client + `pnpm dev:railway` (Metro en la Mac) y se rebuildea solo si cambia algo nativo.
 - Deploy: Railway con `railway.json` como config-as-code (sin build/start command custom en el dashboard, un solo servicio para la API). Nada en Vercel.
 
 **Trampas conocidas**:

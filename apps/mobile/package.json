@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "expo start --dev-client",
     "start": "expo start --dev-client",
+    "dev:railway": "EXPO_PUBLIC_API_URL=https://findemesapi-production.up.railway.app expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "eslint .",

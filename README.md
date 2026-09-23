@@ -43,19 +43,22 @@ Environment variables are documented in [`apps/api/.env.example`](./apps/api/.en
 
 ### The app on your phone
 
-Expo Go does not work (there will be a native module in phase 2); you need a **development build**.
+Expo Go does not work (there will be a native module in phase 2); you need a **development build**. Build it once and reinstall only when something native changes (a new Expo module, a config plugin, permissions):
 
 ```bash
 cd apps/mobile
-npx eas-cli@latest login                      # your Expo account (the project is already linked)
 npx eas-cli@latest build --profile development --platform android
 ```
 
-Install the APK, run `pnpm dev` at the repo root and open the app. The `development` profile points the app at `http://10.0.2.2:3000` (Android emulator). On a physical phone set `EXPO_PUBLIC_API_URL` to your computer's LAN IP in `apps/mobile/.env` (see `.env.example`) before building, or leave it unset: in development the app falls back to the Metro host on port 3000.
+Install the APK, then serve the JavaScript from your computer. The phone must be on the same Wi-Fi:
 
-EAS installs the monorepo from a clean checkout, so the `eas-build-post-install` script in `apps/mobile/package.json` compiles `packages/shared` before Metro bundles (its `dist` is not in git).
+```bash
+cd apps/mobile
+pnpm dev:railway      # the app talks to the Railway API
+pnpm dev              # the app talks to EXPO_PUBLIC_API_URL from apps/mobile/.env (a local API)
+```
 
-A rebuild is needed whenever a config plugin changes (`expo-secure-store` and `expo-notifications` were added in phase 1). To test against Railway, put the public domain in the `preview` profile of `eas.json` and build with `--profile preview`; the manual checklist is in [`docs/testing/phase-1-manual.md`](./docs/testing/phase-1-manual.md).
+Open the app and pick the server Metro shows (or scan its QR). JavaScript changes reload on save: no new build and no EAS cost. The `preview` profile is a standalone APK (no computer needed) pointed at Railway; use it to hand the app to someone or before a release.
 
 ## Everyday commands
 
