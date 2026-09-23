@@ -20,6 +20,14 @@
     "MAIL_PROVIDER",
     "RESEND_API_KEY",
     "MAIL_FROM",
+    "RAW_EVENT_KEY",
+    "RAW_EVENT_KEY_VERSION",
+    "INGEST_TOKEN_ROTATE_DAYS",
+    "LLM_PROVIDER",
+    "ANTHROPIC_API_KEY",
+    "LLM_MODEL",
+    "LLM_DAILY_CAP",
+    "LLM_TIMEOUT_MS",
     "E2E_ALLOW_REMOTE_DB"
   ],
   "tasks": {

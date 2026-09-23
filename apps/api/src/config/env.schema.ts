@@ -2,6 +2,18 @@ import { z } from 'zod';
 
 const NodeEnv = z.enum(['development', 'test', 'production']);
 const MailProviderName = z.enum(['console', 'fake', 'resend']);
+const LlmProviderName = z.enum(['anthropic', 'fake', 'none']);
+
+/** Keys that ship in .env.example / the test setup; refused in production. */
+export const DEV_RAW_EVENT_KEY = Buffer.from('dev-only-raw-event-key-000000000').toString('base64');
+export const TEST_RAW_EVENT_KEY = Buffer.from('test-only-raw-event-key-00000000').toString(
+  'base64',
+);
+
+/** base64 of exactly 32 random bytes (AES-256): `openssl rand -base64 32`. */
+const AesKey = z.string().refine((value) => Buffer.from(value, 'base64').length === 32, {
+  message: 'must be base64 of 32 bytes (openssl rand -base64 32)',
+});
 
 /** Secrets that ship in .env.example / the test setup. Fine locally, refused in production. */
 const PLACEHOLDER_SECRET = /^(dev-only|test-only)-/;
@@ -44,13 +56,34 @@ export const EnvSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   /** "Findemes <hola@tudominio.com>" or onboarding@resend.dev while the domain is unverified. */
   MAIL_FROM: z.string().min(3).optional(),
+
+  // ── ingest (Phase 2) ──
+  /**
+   * AES-256-GCM key for RawEvent payloads. Optional so a deploy never breaks before it
+   * is configured: without it, automatic capture answers 503 and nothing is stored.
+   */
+  RAW_EVENT_KEY: AesKey.optional(),
+  /** Bumped when RAW_EVENT_KEY is rotated; stored with each event. */
+  RAW_EVENT_KEY_VERSION: z.coerce.number().int().min(1).default(1),
+  /** Days before the app replaces a device's ingest token when it opens. */
+  INGEST_TOKEN_ROTATE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+
+  // ── LLM fallback ──
+  /** Defaults: test→fake; otherwise anthropic when ANTHROPIC_API_KEY is set, else none. */
+  LLM_PROVIDER: LlmProviderName.optional(),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  LLM_MODEL: z.string().min(1).default('claude-opus-5'),
+  /** Claude calls per user per day (Argentina); beyond it, unmatched notifications wait. */
+  LLM_DAILY_CAP: z.coerce.number().int().min(0).default(30),
+  LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
 });
 
 type ParsedEnv = z.output<typeof EnvSchema>;
 
-export type Env = Omit<ParsedEnv, 'SWAGGER_ENABLED' | 'MAIL_PROVIDER'> & {
+export type Env = Omit<ParsedEnv, 'SWAGGER_ENABLED' | 'MAIL_PROVIDER' | 'LLM_PROVIDER'> & {
   SWAGGER_ENABLED: boolean;
   MAIL_PROVIDER: z.infer<typeof MailProviderName>;
+  LLM_PROVIDER: z.infer<typeof LlmProviderName>;
 };
 
 const DEFAULT_MAIL_PROVIDER: Record<z.infer<typeof NodeEnv>, Env['MAIL_PROVIDER']> = {
@@ -69,6 +102,9 @@ export function validateEnv(config: Record<string, unknown>): Env {
     ...data,
     SWAGGER_ENABLED: data.SWAGGER_ENABLED ?? data.NODE_ENV !== 'production',
     MAIL_PROVIDER: data.MAIL_PROVIDER ?? DEFAULT_MAIL_PROVIDER[data.NODE_ENV],
+    LLM_PROVIDER:
+      data.LLM_PROVIDER ??
+      (data.NODE_ENV === 'test' ? 'fake' : data.ANTHROPIC_API_KEY ? 'anthropic' : 'none'),
   };
 
   const problems: string[] = [];
@@ -79,6 +115,15 @@ export function validateEnv(config: Record<string, unknown>): Env {
       problems.push('JWT_SECRET is a placeholder; generate a real one');
     if (PLACEHOLDER_SECRET.test(env.OTP_PEPPER))
       problems.push('OTP_PEPPER is a placeholder; generate a real one');
+    if (env.RAW_EVENT_KEY === DEV_RAW_EVENT_KEY || env.RAW_EVENT_KEY === TEST_RAW_EVENT_KEY)
+      problems.push('RAW_EVENT_KEY is a placeholder; generate a real one');
+    if (env.LLM_PROVIDER === 'fake') problems.push('LLM_PROVIDER cannot be "fake" in production');
+  }
+  if (env.NODE_ENV !== 'test' && env.RAW_EVENT_KEY === TEST_RAW_EVENT_KEY) {
+    problems.push('the test-only RAW_EVENT_KEY is only accepted when NODE_ENV=test');
+  }
+  if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) {
+    problems.push('ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic');
   }
   if (
     env.NODE_ENV !== 'test' &&

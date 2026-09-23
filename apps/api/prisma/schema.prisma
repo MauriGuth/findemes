@@ -113,20 +113,27 @@ model User {
   categories    Category[]
   monthPlans    MonthPlan[]
   commitments   Commitment[]
+  llmUsage      LlmUsage[]
 }
 
 model Device {
-  id              String         @id @default(uuid(7))
-  userId          String
-  platform        DevicePlatform
-  name            String?
-  appVersion      String?
-  pushToken       String?
+  id                  String         @id @default(uuid(7))
+  userId              String
+  platform            DevicePlatform
+  name                String?
+  appVersion          String?
+  pushToken           String?
   /// Android only: whether the notification listener is granted and running.
-  listenerEnabled Boolean        @default(false)
-  lastSeenAt      DateTime?      @db.Timestamptz
-  createdAt       DateTime       @default(now()) @db.Timestamptz
-  updatedAt       DateTime       @updatedAt @db.Timestamptz
+  listenerEnabled     Boolean        @default(false)
+  lastSeenAt          DateTime?      @db.Timestamptz
+  /// sha256 hex of the device's ingest token (ADR 009); null = automatic capture off.
+  /// The token only authorizes /ingest/*, so the native module never holds a session.
+  ingestTokenHash     String?        @unique
+  ingestTokenIssuedAt DateTime?      @db.Timestamptz
+  /// Last time the native module reported in (GET /ingest/config or an upload).
+  lastIngestAt        DateTime?      @db.Timestamptz
+  createdAt           DateTime       @default(now()) @db.Timestamptz
+  updatedAt           DateTime       @updatedAt @db.Timestamptz
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   rawEvents     RawEvent[]
@@ -199,21 +206,23 @@ model Source {
 /// Deterministic parsing rule for one source. Versioned in the database so it
 /// can be updated without shipping a release.
 model ParserTemplate {
-  id        String   @id @default(uuid(7))
-  sourceId  String
-  name      String
-  version   Int      @default(1)
+  id         String   @id @default(uuid(7))
+  sourceId   String
+  name       String
+  version    Int      @default(1)
   /// Regular expression with named groups.
-  pattern   String
+  pattern    String
   /// Maps named groups to Transaction fields and applies normalizations.
-  fieldMap  Json
+  fieldMap   Json
   /// Lower runs first.
-  priority  Int      @default(100)
-  active    Boolean  @default(true)
+  priority   Int      @default(100)
+  /// 0.00–1.00: ≥ 0.90 creates a CONFIRMED movement, below asks the user (PENDING).
+  confidence Decimal  @default(0.95) @db.Decimal(3, 2)
+  active     Boolean  @default(true)
   /// Anonymized samples the template was built from.
-  samples   Json?
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  samples    Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
 
   source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
@@ -420,4 +429,26 @@ model Commitment {
   payments Transaction[]
 
   @@index([userId, active])
+}
+
+/// One row per Claude call: cost per request and the per-user daily cap (ADR 010).
+/// Never stores the text sent or the amounts extracted.
+model LlmUsage {
+  id           String   @id @default(uuid(7))
+  userId       String
+  rawEventId   String?
+  /// "notification_fallback" (Phase 3 adds "receipt").
+  purpose      String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  /// USD × 1e6, from the price table in the API.
+  costMicros   Int
+  /// "parsed" | "not_financial" | "error"
+  outcome      String
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
