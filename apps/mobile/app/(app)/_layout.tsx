@@ -2,6 +2,8 @@ import { Stack } from 'expo-router';
 
 import { ReminderSync } from '@/components/ReminderSync';
 
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 export default function AppLayout() {
   return (
     <>

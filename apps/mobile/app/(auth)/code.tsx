@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -61,6 +61,14 @@ export default function CodeScreen() {
 
   const cells = Array.from({ length: 6 }, (_, i) => code[i] ?? '');
 
+  // Opened without an email (deep link, restored state): nothing to verify here.
+  if (!email) return <Redirect href="/(auth)/sign-in" />;
+
+  const changeEmail = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(auth)/sign-in');
+  };
+
   return (
     <Screen>
       <KeyboardAvoidingView
@@ -109,7 +117,7 @@ export default function CodeScreen() {
           variant="ghost"
           disabled={cooldown > 0}
         />
-        <Button label="Cambiar mail" onPress={() => router.back()} variant="ghost" />
+        <Button label="Cambiar mail" onPress={changeEmail} variant="ghost" />
         <Muted>El código vence en 10 minutos.</Muted>
       </KeyboardAvoidingView>
     </Screen>
