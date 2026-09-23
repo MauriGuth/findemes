@@ -4,12 +4,15 @@ export interface SourceSeed {
   slug: string;
   name: string;
   kind: SourceKind;
+  /**
+   * Android package name, only once Mauricio verifies it (Play Store link of the app)
+   * together with real notification samples. Never invented: without it the source is
+   * not in the capture whitelist.
+   */
+  packageName?: string;
 }
 
-/**
- * Banks and wallets we plan to read. `packageName` stays null until phase 2,
- * when each one is verified against a real notification sample: never invented.
- */
+/** Banks and wallets we plan to read. */
 export const SOURCES: readonly SourceSeed[] = [
   { slug: 'mercado-pago', name: 'Mercado Pago', kind: 'WALLET' },
   { slug: 'uala', name: 'Ualá', kind: 'WALLET' },

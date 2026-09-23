@@ -21,8 +21,44 @@ describe('catalog (e2e)', () => {
   it('seeds idempotently', async () => {
     const first = await seedCatalog(ctx.prisma);
     const second = await seedCatalog(ctx.prisma);
-    expect(first).toEqual({ sources: 16, categories: 16 });
+    expect(first).toEqual({ sources: 16, categories: 16, templates: 0 });
     expect(second).toEqual(first);
+  });
+
+  it('publishes template versions from the repo and deactivates removed ones', async () => {
+    // SYNTHETIC template attached to a seeded source, only to exercise versioning.
+    const definition = {
+      source: 'mercado-pago',
+      name: 'e2e-sync',
+      confidence: 0.9,
+      pattern: String.raw`^E2E SYNC \$(?<amount>[\d.,]+)`,
+      fieldMap: { direction: 'OUT', method: 'WALLET' },
+    } as const;
+    const rows = () =>
+      ctx.prisma.parserTemplate.findMany({
+        where: { name: 'e2e-sync' },
+        orderBy: { version: 'asc' },
+        select: { version: true, active: true },
+      });
+    try {
+      expect((await seedCatalog(ctx.prisma, [definition])).templates).toBe(1);
+      await seedCatalog(ctx.prisma, [definition]);
+      expect(await rows()).toEqual([{ version: 1, active: true }]);
+
+      await seedCatalog(ctx.prisma, [{ ...definition, confidence: 0.95 }]);
+      expect(await rows()).toEqual([
+        { version: 1, active: false },
+        { version: 2, active: true },
+      ]);
+
+      expect((await seedCatalog(ctx.prisma, [])).templates).toBe(0);
+      expect(await rows()).toEqual([
+        { version: 1, active: false },
+        { version: 2, active: false },
+      ]);
+    } finally {
+      await ctx.prisma.parserTemplate.deleteMany({ where: { name: 'e2e-sync' } });
+    }
   });
 
   it('lists the sources without package names', async () => {

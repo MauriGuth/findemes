@@ -35,4 +35,6 @@ export function assertLocalDatabase(): void {
 export async function cleanupE2eData(prisma: PrismaService): Promise<void> {
   await prisma.loginCode.deleteMany({ where: { email: { endsWith: `@${E2E_EMAIL_DOMAIN}` } } });
   await prisma.user.deleteMany({ where: { email: { endsWith: `@${E2E_EMAIL_DOMAIN}` } } });
+  // Synthetic sources from test/helpers/ingest.ts (templates cascade).
+  await prisma.source.deleteMany({ where: { slug: { startsWith: 'e2e-' } } });
 }

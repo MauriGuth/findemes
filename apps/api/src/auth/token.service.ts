@@ -99,11 +99,25 @@ export class TokenService {
     if (row) await this.revokeFamily(row.familyId, this.clock.now());
   }
 
+  /**
+   * Ends a login session. The device's ingest token (ADR 009) goes with it: logout and
+   * reuse detection must also stop the native uploader on that phone.
+   */
   async revokeFamily(familyId: string, now: Date): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: { familyId, revokedAt: null },
       data: { revokedAt: now },
     });
+    const device = await this.prisma.refreshToken.findFirst({
+      where: { familyId, deviceId: { not: null } },
+      select: { deviceId: true },
+    });
+    if (device?.deviceId) {
+      await this.prisma.device.updateMany({
+        where: { id: device.deviceId },
+        data: { ingestTokenHash: null, ingestTokenIssuedAt: null, listenerEnabled: false },
+      });
+    }
   }
 
   private async mint(
