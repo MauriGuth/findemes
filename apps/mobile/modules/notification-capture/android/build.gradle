@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ar.com.novasolutions.findemes'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.notificationcapture"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // ADR 009 / plan D2: the only native dependency added in Phase 2.
+  implementation "androidx.work:work-runtime:2.11.2"
+}

@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      Reads notifications ONLY from the whitelist the API sends (banks and wallets).
+      Everything else is discarded in onNotificationPosted before its content is read.
+    -->
+    <service
+      android:name="expo.modules.notificationcapture.CaptureListenerService"
+      android:exported="false"
+      android:label="Findemes"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>
