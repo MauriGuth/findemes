@@ -159,3 +159,30 @@ Loop manual completo y verificado: login por código de mail, movimientos a mano
 - Railway: si un deploy no muestra el paso **Pre-deploy**, las migraciones no corrieron (pasó en el primer deploy: `/health` verde y todo lo demás en 500). Revisar Settings → Deploy → Pre-deploy Command.
 - Los montos se tipean con `MoneyInput`, que formatea en vivo con `formatTypedAmount` de `shared` ("3.000.000", coma para centavos); no usar `TextField` para plata.
 - El pago del resumen se crea con `isStatementPayment` y el monto pendiente; no vincularlo a un compromiso.
+
+## Fase 2 — estado (2026-09-23)
+
+Todo lo que no depende de muestras está hecho y verificado localmente: módulo nativo `notification-capture` (Kotlin), token de ingesta por dispositivo (ADR 009), `/ingest/config` y `/ingest/notifications`, RawEvent cifrado, `ParserEngine` en `shared`, fallback con Claude y tope diario (ADR 010), dedup por fingerprint, Pendientes (detectados, transferencias propias, duplicados de lo cargado a mano), onboarding con divulgación y modo captura. ADR 005 cerrado: procesamiento sincrónico, sin Redis ni BullMQ. Checklist manual en `docs/testing/phase-2-manual.md`.
+
+**Falta (bloqueado por Mauricio)**: package names verificados y muestras reales de Mercado Pago, Ualá, Brubank, Galicia, Santander y BPN → un commit `feat(parsers): <source>` por app con fixtures reales. Hasta entonces `TEMPLATE_DEFINITIONS` está vacío, ninguna Source tiene `packageName` y la whitelist está vacía.
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- El módulo nativo se autentica con un token de ingesta (`fdi_` + 32 bytes, sha256 en `Device.ingestTokenHash`) que solo sirve para `/ingest/*` (decorador `IngestAuth`). Se revoca al apagar la captura, al cerrar sesión (`revokeFamily`) y al borrar la cuenta; se rota al abrir la app pasados 30 días y vence a los 60.
+- `RawEvent.payload`: AES-256-GCM con `RAW_EVENT_KEY` (AAD `raw-event:<userId>`), `keyVersion` para rotar. Sin la clave, la ingesta responde 503. Vence a los 30 días; la purga es oportunista en cada ingesta.
+- Procesamiento sincrónico en la request. Un evento `FAILED` se reintenta en la próxima subida de cualquier dispositivo del usuario (hasta 5 de las últimas 24 h).
+- Templates como código en `packages/shared/src/parsers/templates/`, sincronizadas a `ParserTemplate` por el seed (nueva `version` si cambia algo). Regex con grupos con nombre (`amount`, `merchant`, …). Confianza ≥ 0,90 → CONFIRMED; menos → PENDING. Los IN nacen siempre PENDING.
+- LLM: `LlmProvider` (`anthropic` | `fake` | `none`), modelo por `LLM_MODEL` (default `claude-opus-5`, effort `low`, salida con JSON schema). Confianza fija 0,70 → siempre PENDING. Tope `LLM_DAILY_CAP` por usuario y día; cada llamada escribe `LlmUsage` con tokens y costo, sin texto ni montos.
+- Fingerprint: `sha256(userId|sourceId|amount|occurredAt en buckets de 2 min|merchantNorm)`; si choca, el evento queda PROCESSED como duplicado.
+- Pendientes: `findReviewPairs` en `shared` (transferencia propia OUT/IN ≤ 30 min en fuentes distintas; duplicado de uno manual ≤ 10 min). Se resuelven con los campos que ya existían (`status`, `isOwnTransfer`) por `PATCH /transactions/:id`.
+- Nativo: `NotificationListenerService` que descarta fuera de la whitelist antes de leer el contenido, cola SQLite (tope 500), token cifrado con Android Keystore (AES-GCM), subida directa y `WorkManager` 2.11.2 para reintentos. Única dependencia nativa nueva.
+
+**Trampas conocidas**:
+
+- Cambios en `modules/notification-capture` requieren rebuild del dev client (`--profile development`); cambios de JS no.
+- Android 13+ con APK fuera de Play: el acceso a notificaciones aparece como "Configuración restringida" hasta habilitarlo desde la info de la app. La app lo explica.
+- "Forzar detención" desengancha el listener hasta abrir la app; deslizarla de recientes no.
+- `fieldMap` es `jsonb`: Postgres reordena las claves, así que el seed compara con `stableJson`; sin eso, cada deploy publicaba una versión nueva de cada template.
+- `pkill -f "expo [s]tart"` en la misma línea que otros comandos mata la propia shell (exit 144): correrlo solo.
+- Maven Central devuelve 429 a veces al compilar el Kotlin localmente: reintentar.
+- Nunca inventar un fixture de banco: los tests del motor usan una fuente sintética y los e2e templates `E2E …`; `__fixtures__/<source>/` es solo para muestras reales anonimizadas.

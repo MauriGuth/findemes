@@ -4,7 +4,7 @@ Personal finance app for Argentina. It captures what you pay automatically (bank
 
 The product brief, domain rules and phase plan live in [`CLAUDE.md`](./CLAUDE.md). Technical decisions are recorded in [`docs/decisions/`](./docs/decisions/).
 
-**Status: Phase 1 (manual loop).** Email-code login, manual movements, monthly plan and commitments, the "Te quedan $X hasta el 1" header computed by a pure, golden-tested function, and a local daily reminder. No automatic ingestion yet (phase 2).
+**Status: Phase 2 (Android ingestion).** On top of the Phase 1 manual loop: an Android native module that reads only whitelisted bank and wallet notifications, uploads them with a per-device ingest token, and a server pipeline that stores them encrypted, parses them with versioned templates (Claude as fallback) and deduplicates them. Parsers for real apps land as real samples arrive.
 
 ## Stack
 
@@ -104,17 +104,20 @@ Config as code lives in [`railway.json`](./railway.json): build with `apps/api/D
 2. Add a **PostgreSQL** database to the project.
 3. On the API service set the variables (Railway injects `PORT`):
 
-   | Variable          | Value                                                         |
-   | ----------------- | ------------------------------------------------------------- |
-   | `DATABASE_URL`    | reference to the Postgres service's `DATABASE_URL`            |
-   | `NODE_ENV`        | `production`                                                  |
-   | `JWT_SECRET`      | `openssl rand -base64 48`                                     |
-   | `OTP_PEPPER`      | `openssl rand -base64 48` (a different one)                   |
-   | `MAIL_PROVIDER`   | `resend`                                                      |
-   | `RESEND_API_KEY`  | from resend.com → API Keys                                    |
-   | `MAIL_FROM`       | `Findemes <onboarding@resend.dev>` until a domain is verified |
-   | `SWAGGER_ENABLED` | `false`                                                       |
-   | `CORS_ORIGINS`    | empty unless a web client appears                             |
+   | Variable            | Value                                                                                      |
+   | ------------------- | ------------------------------------------------------------------------------------------ |
+   | `DATABASE_URL`      | reference to the Postgres service's `DATABASE_URL`                                         |
+   | `NODE_ENV`          | `production`                                                                               |
+   | `JWT_SECRET`        | `openssl rand -base64 48`                                                                  |
+   | `OTP_PEPPER`        | `openssl rand -base64 48` (a different one)                                                |
+   | `MAIL_PROVIDER`     | `resend`                                                                                   |
+   | `RESEND_API_KEY`    | from resend.com → API Keys                                                                 |
+   | `MAIL_FROM`         | `Findemes <onboarding@resend.dev>` until a domain is verified                              |
+   | `SWAGGER_ENABLED`   | `false`                                                                                    |
+   | `CORS_ORIGINS`      | empty unless a web client appears                                                          |
+   | `RAW_EVENT_KEY`     | `openssl rand -base64 32` (automatic capture; without it the API answers 503 on /ingest)   |
+   | `ANTHROPIC_API_KEY` | from console.anthropic.com (Claude fallback; without it unknown formats stay unrecognized) |
+   | `LLM_DAILY_CAP`     | optional, default 30 Claude calls per user per day                                         |
 
 4. Settings → Networking → **Generate Domain**. That URL goes into `eas.json` (`preview` profile) and is what the phone talks to.
 5. Deploy. The pre-deploy step applies pending migrations and seeds the catalog (idempotent); a failed migration blocks the release.

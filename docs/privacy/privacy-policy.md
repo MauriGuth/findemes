@@ -1,4 +1,4 @@
-# Política de privacidad de Findemes (borrador, Fase 1)
+# Política de privacidad de Findemes (borrador, Fase 2)
 
 _Borrador para revisión. La versión publicada (requisito de Google Play y App Store) sale de este texto en la Fase 5, con la URL pública de solicitud de borrado que pide Google Play._
 
@@ -10,7 +10,9 @@ _Borrador para revisión. La versión publicada (requisito de Google Play y App 
 - Los movimientos, compromisos y planes mensuales que cargás, para calcular cuánto te queda hasta el 1.
 - Un identificador del dispositivo y la versión de la app, para mantener tu sesión.
 
-No guardamos contraseñas, contactos, ubicación ni mensajes. En esta fase la app no lee notificaciones de otras apps.
+- Si activás la **captura automática** (Android): el texto de las notificaciones de los bancos y billeteras de nuestra lista, para convertirlo en movimientos.
+
+No guardamos contraseñas, contactos, ubicación ni mensajes. La captura automática nunca lee notificaciones de apps que no estén en la lista (WhatsApp, mensajes, mails, redes sociales): el teléfono las descarta antes de mirarlas.
 
 ## Para qué
 
@@ -20,10 +22,11 @@ Solamente para que la app funcione: calcular el número de la pantalla principal
 
 - **Resend** (Resend, Inc., Estados Unidos) envía el mail con el código de acceso. Conserva el mensaje hasta 30 días en servidores fuera de Argentina. Solo recibe tu mail y el código.
 - **Railway** (Railway Corp., Estados Unidos) aloja la API y la base de datos.
+- **Anthropic** (Anthropic, PBC, Estados Unidos): cuando no reconocemos el formato de una notificación, le enviamos ese texto a Claude solo para extraer el monto, el comercio y el medio de pago. No le enviamos tu mail ni otros datos de tu cuenta.
 
 ## Cuánto tiempo
 
-Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borran al día siguiente. Las sesiones vencen a los 180 días como máximo.
+Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borran al día siguiente. Las sesiones vencen a los 180 días como máximo. El texto original de las notificaciones se guarda cifrado y se borra a los 30 días; el movimiento que generó queda hasta que lo borres.
 
 ## Tus derechos (Ley 25.326)
 
