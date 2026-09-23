@@ -2,6 +2,7 @@ import { type AuthSession, type User } from '@findemes/shared';
 import { create } from 'zustand';
 
 import { logoutSession } from './auth-api';
+import { forgetCapture } from './capture';
 import {
   setSessionLostHandler,
   setTokens,
@@ -60,6 +61,8 @@ export const useSession = create<SessionState>((set, get) => ({
   forget: async () => {
     setTokens(null);
     await clearStoredTokens();
+    // The server already revoked the ingest token with the session; this clears the phone.
+    await forgetCapture();
     queryClient.clear();
     set({ status: 'signedOut', user: null });
   },

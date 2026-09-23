@@ -124,6 +124,10 @@ export default function HomeScreen() {
   const candidates = (transactions.data ?? []).filter((t) =>
     s?.pending.salaryCandidateIds.includes(t.id),
   );
+  const toReview =
+    (s?.pending.reviewTransactionIds.length ?? 0) +
+    (s?.pending.ownTransferPairs.length ?? 0) +
+    (s?.pending.possibleDuplicatePairs.length ?? 0);
   const dueUnpaid = (s?.commitments.items ?? []).filter(
     (c) => s?.pending.unpaidDueCommitmentIds.includes(c.id) && !dismissed.includes(c.id),
   );
@@ -163,11 +167,23 @@ export default function HomeScreen() {
 
         {s &&
         (s.pending.needsPlan ||
+          toReview > 0 ||
           candidates.length > 0 ||
           dueUnpaid.length > 0 ||
           s.pending.needsStatementPayment) ? (
           <Card className="border border-warn/40">
             <Text className="text-base font-semibold text-white">Pendientes</Text>
+
+            {toReview > 0 ? (
+              <View className="flex-row items-center justify-between gap-2">
+                <Muted className="flex-1">
+                  {toReview === 1
+                    ? 'Detectamos 1 movimiento para revisar.'
+                    : `Detectamos ${String(toReview)} movimientos para revisar.`}
+                </Muted>
+                <Chip label="Revisar" onPress={() => router.push('/(app)/pending')} />
+              </View>
+            ) : null}
 
             {s.pending.needsPlan ? (
               <View className="gap-2">
@@ -330,10 +346,13 @@ export default function HomeScreen() {
                         {METHOD_LABEL[tx.method]}
                         {sourceName(tx.sourceId) ? ` · ${sourceName(tx.sourceId) ?? ''}` : ''}
                         {tx.isOwnTransfer ? ' · Entre mis cuentas' : ''}
+                        {tx.origin !== 'MANUAL' ? ' · Detectado' : ''}
                         {tx.isSalary
                           ? ' · Sueldo'
                           : tx.status === 'PENDING'
-                            ? ' · Sin clasificar'
+                            ? tx.direction === 'OUT'
+                              ? ' · Para revisar'
+                              : ' · Sin clasificar'
                             : ''}
                         {item?.installmentNumber
                           ? ` · Cuota ${String(item.installmentNumber)}/${String(item.installmentNumber + (item.installmentsLeft ?? 0))}`
