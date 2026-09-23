@@ -28,6 +28,7 @@ describe('ingest (e2e)', () => {
   async function enable(session: TestSession): Promise<{ Authorization: string }> {
     const res = await api().post('/devices/current/ingest-token').set(session.auth).expect(201);
     expect(res.body.token).toMatch(/^fdi_/);
+    expect(res.body.packages).toContain(source.packageName);
     return { Authorization: `Bearer ${res.body.token as string}` };
   }
 

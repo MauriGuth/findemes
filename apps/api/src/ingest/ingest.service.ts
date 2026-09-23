@@ -25,7 +25,7 @@ export class IngestService {
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
-  private async whitelist(): Promise<Map<string, string>> {
+  private async whitelistMap(): Promise<Map<string, string>> {
     const sources = await this.prisma.source.findMany({
       where: { active: true, packageName: { not: null } },
       select: { id: true, packageName: true },
@@ -42,7 +42,7 @@ export class IngestService {
 
   async config(device: IngestDevice): Promise<IngestConfig> {
     await this.touch(device);
-    return { packages: [...(await this.whitelist()).keys()].sort() };
+    return { packages: [...(await this.whitelistMap()).keys()].sort() };
   }
 
   /**
@@ -57,7 +57,7 @@ export class IngestService {
     }
     const now = this.clock.now();
     await this.prisma.rawEvent.deleteMany({ where: { expiresAt: { lt: now } } });
-    const whitelist = await this.whitelist();
+    const whitelist = await this.whitelistMap();
     const result: IngestResult = { accepted: 0, duplicates: 0, rejected: 0 };
     const handled = new Set<string>();
 

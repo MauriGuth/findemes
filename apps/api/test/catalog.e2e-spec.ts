@@ -73,6 +73,7 @@ describe('catalog (e2e)', () => {
       name: expect.any(String),
       kind: expect.stringMatching(/^(BANK|WALLET|CARD)$/),
       active: true,
+      captureEnabled: expect.any(Boolean),
     });
     expect(response.body.map((s: { slug: string }) => s.slug)).toContain('bpn');
   });

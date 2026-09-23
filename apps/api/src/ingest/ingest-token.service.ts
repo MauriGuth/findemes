@@ -62,7 +62,22 @@ export class IngestTokenService {
       data: { ingestTokenHash: IngestTokenService.hash(token), ingestTokenIssuedAt: now },
     });
     this.logger.log(`ingest.token_issued device=${deviceId}`);
-    return { token, issuedAt: now.toISOString(), rotateAfterDays: this.rotateDays };
+    return {
+      token,
+      issuedAt: now.toISOString(),
+      rotateAfterDays: this.rotateDays,
+      packages: await this.whitelist(),
+    };
+  }
+
+  /** Package names of active sources with a verified package name. */
+  async whitelist(): Promise<string[]> {
+    const sources = await this.prisma.source.findMany({
+      where: { active: true, packageName: { not: null } },
+      select: { packageName: true },
+      orderBy: { packageName: 'asc' },
+    });
+    return sources.flatMap((s) => (s.packageName ? [s.packageName] : []));
   }
 
   async revoke(user: AuthUser): Promise<void> {

@@ -10,6 +10,8 @@ export const SourceSchema = z
     name: z.string(),
     kind: SourceKind,
     active: z.boolean(),
+    /** Its notifications are read by automatic capture (the package name is verified). */
+    captureEnabled: z.boolean(),
   })
   .meta({ id: 'Source' });
 export type Source = z.infer<typeof SourceSchema>;

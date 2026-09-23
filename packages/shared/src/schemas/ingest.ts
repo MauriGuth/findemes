@@ -49,6 +49,8 @@ export const IngestTokenSchema = z
     token: z.string(),
     issuedAt: IsoDateTimeSchema,
     rotateAfterDays: z.number().int(),
+    /** Whitelist to hand to the native listener right away. */
+    packages: z.array(z.string()),
   })
   .meta({ id: 'IngestToken' });
 export type IngestToken = z.infer<typeof IngestTokenSchema>;

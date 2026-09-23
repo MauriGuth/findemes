@@ -11,9 +11,13 @@ export class CatalogService {
     const rows = await this.prisma.source.findMany({
       where: { active: true },
       orderBy: { name: 'asc' },
-      select: { id: true, slug: true, name: true, kind: true, active: true },
+      select: { id: true, slug: true, name: true, kind: true, active: true, packageName: true },
     });
-    return rows;
+    // The package name itself is not exposed; only whether capture reads this source.
+    return rows.map(({ packageName, ...source }) => ({
+      ...source,
+      captureEnabled: packageName !== null,
+    }));
   }
 
   /** System categories plus the user's own, ordered for display. */
