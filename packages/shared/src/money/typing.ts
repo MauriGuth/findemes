@@ -6,8 +6,8 @@ const MAX_INTEGER_DIGITS = 13;
 export interface TypedAmount {
   /** What the field shows: "3.000.000", "1.234,5", "0,". Never ends in a dot. */
   display: string;
-  /** Canonical amount ("3000000", "1234.5") or '' when nothing was typed. */
-  amount: MoneyAmount | '';
+  /** Canonical amount ("3000000", "1234.5"), or the empty string when nothing was typed. */
+  amount: MoneyAmount;
 }
 
 function groupThousands(digits: string): string {
@@ -44,7 +44,7 @@ export function formatTypedAmount(text: string): TypedAmount {
 }
 
 /** The field text for an amount that comes from the server: "1234.50" → "1.234,50", "3000000.00" → "3.000.000". */
-export function amountToTypedDisplay(amount: MoneyAmount | ''): string {
+export function amountToTypedDisplay(amount: MoneyAmount): string {
   if (amount === '') return '';
   const [integer = '0', decimals = ''] = amount.replace(/^-/, '').split('.');
   const cents = /^0*$/.test(decimals) ? '' : decimals.padEnd(2, '0');
