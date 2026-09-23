@@ -59,6 +59,7 @@ export class IngestService {
     await this.prisma.rawEvent.deleteMany({ where: { expiresAt: { lt: now } } });
     const whitelist = await this.whitelist();
     const result: IngestResult = { accepted: 0, duplicates: 0, rejected: 0 };
+    const handled = new Set<string>();
 
     for (const item of items) {
       if (!whitelist.has(item.packageName)) {
@@ -88,6 +89,7 @@ export class IngestService {
           select: { id: true },
         });
         result.accepted += 1;
+        handled.add(row.id);
         await this.processor.process(row.id);
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
@@ -96,9 +98,27 @@ export class IngestService {
           where: { deviceId: device.deviceId, externalKey: item.key, postedAt },
           select: { id: true, status: true },
         });
-        if (existing?.status === 'FAILED') await this.processor.process(existing.id);
+        if (existing?.status === 'FAILED') {
+          handled.add(existing.id);
+          await this.processor.process(existing.id);
+        }
       }
     }
+
+    // Retry path for events that failed earlier (LLM timeout, transient DB error): a few per
+    // upload, never the ones this batch just handled.
+    const failed = await this.prisma.rawEvent.findMany({
+      where: {
+        userId: device.userId,
+        status: 'FAILED',
+        id: { notIn: [...handled] },
+        receivedAt: { gt: new Date(now.getTime() - 86_400_000) },
+      },
+      orderBy: { receivedAt: 'asc' },
+      take: 5,
+      select: { id: true },
+    });
+    for (const event of failed) await this.processor.process(event.id);
 
     await this.touch(device);
     this.logger.log(
