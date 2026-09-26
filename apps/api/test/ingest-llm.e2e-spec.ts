@@ -2,6 +2,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { type FakeLlmProvider } from '../src/llm/fake-llm.provider.js';
+import { RETRY_BACKOFF_MS } from '../src/ingest/ingest.service.js';
 import { LLM_PROVIDER } from '../src/llm/llm.provider.js';
 import { createTestApp, type TestApp } from './helpers/app.js';
 import { loginAs } from './helpers/auth.js';
@@ -136,15 +137,33 @@ describe('ingest LLM fallback (e2e)', () => {
     expect([event.status, event.error]).toEqual(['UNRECOGNIZED', 'llm_cap']);
   });
 
-  it('marks errors FAILED and retries them on the next upload', async () => {
+  it('marks errors FAILED and retries them on a later upload, after the backoff', async () => {
     const { session, ingest } = await setup();
     llm.respondWith(() => new Error('timeout'));
-    await send(ingest, 'E2E falla la primera vez');
+    const first = item('E2E falla la primera vez');
+    await api()
+      .post('/ingest/notifications')
+      .set(ingest)
+      .send({ items: [first] })
+      .expect(200);
     const failed = await ctx.prisma.rawEvent.findFirstOrThrow({
       where: { userId: session.userId },
     });
     expect(failed.status).toBe('FAILED');
 
+    // The phone resends the same batch right away (its read timed out): no second call.
+    await api()
+      .post('/ingest/notifications')
+      .set(ingest)
+      .send({ items: [first] })
+      .expect(200);
+    await send(ingest, 'E2E GASTO $1 EN Antes');
+    expect(llm.calls).toHaveLength(1);
+    expect((await ctx.prisma.rawEvent.findUniqueOrThrow({ where: { id: failed.id } })).status).toBe(
+      'FAILED',
+    );
+
+    ctx.clock.advance(RETRY_BACKOFF_MS + 1_000);
     llm.respondWith(() => ({
       isFinancial: true,
       amount: '99',
@@ -162,5 +181,34 @@ describe('ingest LLM fallback (e2e)', () => {
       orderBy: { createdAt: 'asc' },
     });
     expect(usage.map((u) => u.outcome).sort()).toEqual(['error', 'parsed']);
+  });
+
+  it('does not count failed calls toward the daily cap', async () => {
+    const { session, ingest } = await setup();
+    await ctx.prisma.llmUsage.createMany({
+      data: Array.from({ length: 30 }, () => ({
+        userId: session.userId,
+        purpose: 'notification_fallback',
+        model: 'x',
+        inputTokens: 0,
+        outputTokens: 0,
+        costMicros: 0,
+        outcome: 'error',
+        createdAt: ctx.clock.now(),
+      })),
+    });
+    llm.respondWith(() => ({
+      isFinancial: true,
+      amount: '1.500',
+      currency: 'ARS',
+      direction: 'OUT',
+      method: 'DEBIT',
+      merchant: 'Despues del corte',
+    }));
+    await send(ingest, 'E2E después de una caída');
+
+    expect(llm.calls).toHaveLength(1);
+    const event = await ctx.prisma.rawEvent.findFirstOrThrow({ where: { userId: session.userId } });
+    expect(event.status).toBe('PROCESSED');
   });
 });

@@ -9,6 +9,11 @@ import { IngestProcessor, type NotificationPayload } from './ingest.processor.js
 import { type IngestDevice } from './ingest-token.service.js';
 
 const RAW_EVENT_TTL_MS = 30 * 86_400_000;
+/**
+ * A FAILED event waits this long before another attempt, so a phone resending the same
+ * batch (its read timeout is shorter than a slow LLM call) doesn't hammer Claude.
+ */
+export const RETRY_BACKOFF_MS = 5 * 60_000;
 
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -49,7 +54,7 @@ export class IngestService {
    * Stores each whitelisted notification encrypted and processes it right away (ADR 005:
    * synchronous). Anything outside the whitelist is dropped without being stored, even if a
    * modified client sends it. A repeated notification is a no-op, except that a FAILED one
-   * is processed again: that is the retry path.
+   * is processed again once RETRY_BACKOFF_MS has passed: that is the retry path.
    */
   async ingest(device: IngestDevice, items: IngestNotification[]): Promise<IngestResult> {
     if (!this.crypto.enabled) {
@@ -58,6 +63,7 @@ export class IngestService {
     const now = this.clock.now();
     await this.prisma.rawEvent.deleteMany({ where: { expiresAt: { lt: now } } });
     const whitelist = await this.whitelistMap();
+    const retryBefore = new Date(now.getTime() - RETRY_BACKOFF_MS);
     const result: IngestResult = { accepted: 0, duplicates: 0, rejected: 0 };
     const handled = new Set<string>();
 
@@ -96,9 +102,12 @@ export class IngestService {
         result.duplicates += 1;
         const existing = await this.prisma.rawEvent.findFirst({
           where: { deviceId: device.deviceId, externalKey: item.key, postedAt },
-          select: { id: true, status: true },
+          select: { id: true, status: true, processedAt: true },
         });
-        if (existing?.status === 'FAILED') {
+        if (
+          existing?.status === 'FAILED' &&
+          (!existing.processedAt || existing.processedAt <= retryBefore)
+        ) {
           handled.add(existing.id);
           await this.processor.process(existing.id);
         }
@@ -106,13 +115,14 @@ export class IngestService {
     }
 
     // Retry path for events that failed earlier (LLM timeout, transient DB error): a few per
-    // upload, never the ones this batch just handled.
+    // upload, after the backoff, never the ones this batch just handled.
     const failed = await this.prisma.rawEvent.findMany({
       where: {
         userId: device.userId,
         status: 'FAILED',
         id: { notIn: [...handled] },
         receivedAt: { gt: new Date(now.getTime() - 86_400_000) },
+        processedAt: { lte: retryBefore },
       },
       orderBy: { receivedAt: 'asc' },
       take: 5,

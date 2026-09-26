@@ -102,8 +102,14 @@ export class IngestProcessor {
   ): Promise<ParsedNotification | 'no_llm' | 'llm_cap' | 'not_financial'> {
     if (!this.llm) return 'no_llm';
     const today = dayRange(todayInArt(this.clock.now()));
+    // Failed calls (outage, timeout) don't use up the cap: otherwise an Anthropic incident
+    // plus the retries would leave the day's real payments unrecognized for good.
     const usedToday = await this.prisma.llmUsage.count({
-      where: { userId: raw.userId, createdAt: { gte: today.start, lt: today.end } },
+      where: {
+        userId: raw.userId,
+        createdAt: { gte: today.start, lt: today.end },
+        outcome: { not: 'error' },
+      },
     });
     if (usedToday >= this.llmDailyCap) return 'llm_cap';
 
@@ -183,7 +189,7 @@ export class IngestProcessor {
   ): Promise<void> {
     await this.prisma.rawEvent.update({
       where: { id },
-      data: { status, error, processedAt: new Date() },
+      data: { status, error, processedAt: this.clock.now() },
     });
   }
 
