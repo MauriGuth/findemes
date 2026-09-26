@@ -6,6 +6,7 @@
 - The deploy shows the **Pre-deploy** step with migration `20260923180000_phase2_ingest`.
 - The native module changed: rebuild the dev client once (`cd apps/mobile && npx eas-cli@latest build --profile development --platform android`) and install the new APK over the old one.
 - The whitelist comes from `Source.packageName`. Until the verified package names are in `catalog.data.ts` and deployed, Ajustes shows "Todavía no hay apps habilitadas para leer." and nothing is captured (steps 3–12 need them).
+- After a deploy that changes the whitelist, open Findemes once: the app pushes the new list to the native module on open. With the app closed the module only refreshes it every 6 h.
 
 | #   | Step                                                                                                                                                                                            | Expected                                                                                                                                                                                                                           | OK  |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
