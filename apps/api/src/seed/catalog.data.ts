@@ -12,24 +12,39 @@ export interface SourceSeed {
   packageName?: string;
 }
 
-/** Banks and wallets we plan to read. */
+/**
+ * Banks and wallets we plan to read. Package names verified 2026-09-26 against the
+ * Play Store listing Mauricio sent (title and developer match the bank). Only the
+ * personal-banking app of each bank: business apps (BBVA Empresas, Galicia Office)
+ * would mix company money into the personal month.
+ */
 export const SOURCES: readonly SourceSeed[] = [
-  { slug: 'mercado-pago', name: 'Mercado Pago', kind: 'WALLET' },
-  { slug: 'uala', name: 'Ualá', kind: 'WALLET' },
-  { slug: 'brubank', name: 'Brubank', kind: 'BANK' },
+  {
+    slug: 'mercado-pago',
+    name: 'Mercado Pago',
+    kind: 'WALLET',
+    packageName: 'com.mercadopago.wallet',
+  },
+  { slug: 'uala', name: 'Ualá', kind: 'WALLET', packageName: 'ar.com.bancar.uala' },
+  { slug: 'brubank', name: 'Brubank', kind: 'BANK', packageName: 'com.brubank' },
   { slug: 'naranja-x', name: 'Naranja X', kind: 'CARD' },
   { slug: 'modo', name: 'MODO', kind: 'WALLET' },
   { slug: 'personal-pay', name: 'Personal Pay', kind: 'WALLET' },
   { slug: 'lemon', name: 'Lemon', kind: 'WALLET' },
   { slug: 'galicia', name: 'Galicia', kind: 'BANK' },
-  { slug: 'santander', name: 'Santander', kind: 'BANK' },
-  { slug: 'bbva', name: 'BBVA', kind: 'BANK' },
+  {
+    slug: 'santander',
+    name: 'Santander',
+    kind: 'BANK',
+    packageName: 'ar.com.santander.rio.mbanking',
+  },
+  { slug: 'bbva', name: 'BBVA', kind: 'BANK', packageName: 'com.bbva.nxt_argentina' },
   { slug: 'macro', name: 'Macro', kind: 'BANK' },
   { slug: 'bna', name: 'BNA+', kind: 'BANK' },
   { slug: 'cuenta-dni', name: 'Cuenta DNI', kind: 'WALLET' },
   { slug: 'bpn', name: 'BPN', kind: 'BANK' },
   { slug: 'icbc', name: 'ICBC', kind: 'BANK' },
-  { slug: 'prex', name: 'Prex', kind: 'WALLET' },
+  { slug: 'prex', name: 'Prex', kind: 'WALLET', packageName: 'air.PrexArgentina' },
 ];
 
 export interface CategorySeed {
