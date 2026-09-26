@@ -1,6 +1,11 @@
-import { Controller, Delete, HttpCode, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { type IngestToken, IngestTokenSchema } from '@findemes/shared';
+import {
+  type IngestConfig,
+  IngestConfigSchema,
+  type IngestToken,
+  IngestTokenSchema,
+} from '@findemes/shared';
 
 import { type AuthUser, CurrentUser } from '../auth/current-user.decorator.js';
 import { IngestTokenService } from './ingest-token.service.js';
@@ -16,6 +21,16 @@ export class DevicesController {
   @ApiOkResponse({ standardSchema: IngestTokenSchema })
   issue(@CurrentUser() user: AuthUser): Promise<IngestToken> {
     return this.tokens.issue(user);
+  }
+
+  /**
+   * The capture whitelist, read by the app on every open so a phone that turned capture on
+   * earlier picks up apps added since (the native module only refreshes every few hours).
+   */
+  @Get('ingest-config')
+  @ApiOkResponse({ standardSchema: IngestConfigSchema })
+  async config(): Promise<IngestConfig> {
+    return { packages: await this.tokens.whitelist() };
   }
 
   /** Turns automatic capture off for this phone. */

@@ -1,10 +1,10 @@
-import { type IngestToken } from '@findemes/shared';
+import { type IngestConfig, type IngestToken } from '@findemes/shared';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import * as Capture from '../../modules/notification-capture';
-import { apiBaseUrl, apiDelete, apiPost } from './api';
+import { apiBaseUrl, apiDelete, apiGet, apiPost } from './api';
 
 const ISSUED_AT_KEY = 'findemes.ingestIssuedAt';
 const ROTATE_DAYS_KEY = 'findemes.ingestRotateDays';
@@ -38,13 +38,26 @@ export async function disableCapture(): Promise<void> {
   }
 }
 
-/** When the app opens: replace a token older than the rotation period, then retry the queue. */
+/**
+ * When the app opens: replace a token older than the rotation period, bring the native
+ * whitelist up to date (the module only refreshes it every few hours, and never while it
+ * holds an empty list), then retry the queue.
+ */
 export async function refreshCapture(): Promise<void> {
   if (!Capture.getQueueStats().hasToken) return;
   const issuedAt = await SecureStore.getItemAsync(ISSUED_AT_KEY);
   const rotateDays = Number((await SecureStore.getItemAsync(ROTATE_DAYS_KEY)) ?? '30');
   const age = issuedAt ? Date.now() - new Date(issuedAt).getTime() : Infinity;
-  if (age > rotateDays * 86_400_000) await enableCapture();
+  if (age > rotateDays * 86_400_000) {
+    await enableCapture();
+  } else {
+    try {
+      const config = await apiGet<IngestConfig>('/devices/current/ingest-config');
+      Capture.setWhitelist(config.packages);
+    } catch {
+      // Offline or an older API: keep the list the module has; the queue still goes out.
+    }
+  }
   Capture.flush();
 }
 

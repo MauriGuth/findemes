@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, ErrorText, Muted, Screen, Title } from '@/components/ui';
@@ -26,12 +26,28 @@ export default function CaptureIntroScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apps = (catalog.data?.sources ?? []).filter((s) => s.captureEnabled).map((s) => s.name);
+  const { refetch } = catalog;
+  // The list below is what the user consents to: never show a day-old cached copy.
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  const appsOf = (data: typeof catalog.data) =>
+    (data?.sources ?? []).filter((s) => s.captureEnabled).map((s) => s.name);
+  const apps = appsOf(catalog.data);
+  const listReady = catalog.isSuccess && !catalog.isFetching;
 
   const accept = async () => {
     setBusy(true);
     setError(null);
     try {
+      // If the list changed since it was shown, show the new one and ask again.
+      const fresh = await refetch();
+      if (fresh.error) throw fresh.error;
+      if (appsOf(fresh.data).join('|') !== apps.join('|')) {
+        setError('La lista de apps cambió. Revisala y volvé a tocar “Acepto y activo”.');
+        return;
+      }
       await enableCapture();
       refresh();
       Capture.openSettings();
@@ -104,9 +120,11 @@ export default function CaptureIntroScreen() {
 
         <Card className="gap-4">
           <Point title="Qué leemos">
-            {apps.length > 0
-              ? `Solo las notificaciones de: ${apps.join(', ')}.`
-              : 'Solo las notificaciones de bancos y billeteras de nuestra lista. Por ahora la lista está vacía.'}
+            {!catalog.data
+              ? 'Cargando la lista de apps…'
+              : apps.length > 0
+                ? `Solo las notificaciones de: ${apps.join(', ')}.`
+                : 'Solo las notificaciones de bancos y billeteras de nuestra lista. Por ahora la lista está vacía.'}
           </Point>
           <Point title="Qué no leemos">
             Nada más. Ni WhatsApp, ni mensajes, ni mails, ni ninguna otra app: el teléfono las
@@ -127,7 +145,12 @@ export default function CaptureIntroScreen() {
         </Card>
 
         <ErrorText>{error}</ErrorText>
-        <Button label="Acepto y activo" onPress={() => void accept()} loading={busy} />
+        <Button
+          label="Acepto y activo"
+          onPress={() => void accept()}
+          loading={busy}
+          disabled={!listReady}
+        />
         <Button
           label="Ahora no"
           variant="ghost"

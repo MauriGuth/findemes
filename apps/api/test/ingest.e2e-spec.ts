@@ -53,6 +53,11 @@ describe('ingest (e2e)', () => {
 
     const config = await api().get('/ingest/config').set(ingest).expect(200);
     expect(config.body.packages).toContain(source.packageName);
+    // The app reads the same whitelist with the session, to refresh the native copy.
+    const appConfig = await api().get('/devices/current/ingest-config').set(session.auth);
+    expect(appConfig.status).toBe(200);
+    expect(appConfig.body.packages).toEqual(config.body.packages);
+    await api().get('/devices/current/ingest-config').set(ingest).expect(401);
     await api().get('/me').set(ingest).expect(401);
     await api().get('/ingest/config').set(session.auth).expect(401);
     await api().get('/ingest/config').expect(401);
