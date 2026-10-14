@@ -179,6 +179,19 @@ export default function SettingsScreen() {
         <CaptureCard />
 
         <Card>
+          <Text className="text-base text-white">Tus correos</Text>
+          <Muted>
+            Reenviá los correos de tus bancos, tarjetas y servicios: cargamos los consumos y las
+            facturas por pagar.
+          </Muted>
+          <Button
+            label="Configurar"
+            variant="secondary"
+            onPress={() => router.push('/(app)/email')}
+          />
+        </Card>
+
+        <Card>
           <Button
             label="Privacidad"
             variant="secondary"

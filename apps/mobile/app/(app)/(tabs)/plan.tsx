@@ -1,4 +1,11 @@
-import { formatArs, type MonthSummary, nextMonthKey, previousMonthKey } from '@findemes/shared';
+import {
+  formatArs,
+  formatIsoDate,
+  type MonthSummary,
+  nextMonthKey,
+  previousMonthKey,
+  todayInArt,
+} from '@findemes/shared';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -6,9 +13,11 @@ import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-
 import { KIND_LABEL } from '@/components/CommitmentForm';
 import { MoneyInput } from '@/components/MoneyInput';
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
+import { BILL_KIND_LABEL, billStatus, dueLabel } from '@/lib/bills';
 import { currentMonthKey, isoToCalendar, monthName, shortDate } from '@/lib/format';
 import {
   errorMessage,
+  useBills,
   useCommitments,
   useCreateTransaction,
   usePayCommitment,
@@ -48,6 +57,7 @@ export default function PlanScreen() {
   const summary = useSummary(month);
   const plan = usePlan(month);
   const transactions = useTransactions(month);
+  const bills = useBills(month);
   const allCommitments = useCommitments(true);
   const salaryTx = useTransaction(plan.data?.salaryTransactionId ?? '');
   const upsertPlan = useUpsertPlan();
@@ -60,7 +70,10 @@ export default function PlanScreen() {
   const [managing, setManaging] = useState(false);
 
   const fail = (e: unknown) => Alert.alert('No se pudo guardar', errorMessage(e));
-  const refresh = () => Promise.all([summary.refetch(), plan.refetch(), transactions.refetch()]);
+  const refresh = () =>
+    Promise.all([summary.refetch(), plan.refetch(), transactions.refetch(), bills.refetch()]);
+  const todayIso = formatIsoDate(todayInArt());
+  const visibleBills = (bills.data ?? []).filter((b) => b.status !== 'IGNORED');
 
   const s = summary.data;
   const candidates = (transactions.data ?? []).filter((t) =>
@@ -264,6 +277,8 @@ export default function PlanScreen() {
               </Text>
               {s.statement.previous.paid ? (
                 <Chip label="Pagado ✓" tone="success" />
+              ) : s.statement.previous.source === 'bill' ? (
+                <Chip label="Ver en Por pagar" />
               ) : (
                 <Button label="Pagué" onPress={payStatement} loading={createTx.isPending} />
               )}
@@ -272,6 +287,40 @@ export default function PlanScreen() {
               <Muted>Ya pagaste {money(s.statement.previous.paidAmount)}.</Muted>
             ) : null}
           </Card>
+        ) : null}
+
+        {s && visibleBills.length > 0 ? (
+          <View className="gap-3">
+            <Text className="text-lg font-semibold text-white">Por pagar</Text>
+            {visibleBills.map((bill) => {
+              const status = billStatus(bill, todayIso);
+              return (
+                <Pressable
+                  key={bill.id}
+                  onPress={() =>
+                    router.push({ pathname: '/(app)/bills/[id]', params: { id: bill.id, month } })
+                  }
+                  className="gap-2 rounded-xl bg-white/5 px-4 py-3"
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1 gap-0.5">
+                      <Text className="text-base text-white">{bill.issuer}</Text>
+                      <Muted>
+                        {BILL_KIND_LABEL[bill.kind]} · {dueLabel(bill.dueOn)}
+                      </Muted>
+                    </View>
+                    <Text className="text-base font-semibold text-white">{money(bill.amount)}</Text>
+                  </View>
+                  <Row>
+                    <Chip label={status.label} tone={status.tone} />
+                  </Row>
+                </Pressable>
+              );
+            })}
+            {s.bills.unpaid !== '0.00' ? (
+              <Muted>Facturas sin pagar: {money(s.bills.unpaid)}</Muted>
+            ) : null}
+          </View>
         ) : null}
 
         {s ? (

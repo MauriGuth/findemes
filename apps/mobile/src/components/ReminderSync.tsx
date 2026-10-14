@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { currentMonthKey } from '@/lib/format';
-import { useMe, useSummary } from '@/lib/hooks';
+import { useBills, useMe, useSummary } from '@/lib/hooks';
 import { syncDailyReminder } from '@/lib/reminder';
 import { useSession } from '@/lib/session';
 
@@ -13,12 +13,13 @@ import { useSession } from '@/lib/session';
  */
 export function ReminderSync() {
   const summary = useSummary(currentMonthKey());
+  const bills = useBills(currentMonthKey());
   const me = useMe();
   const time = useSession((s) => s.user?.dailyReminderTime ?? me.data?.dailyReminderTime ?? null);
 
   useEffect(() => {
-    void syncDailyReminder(summary.data, time);
-  }, [summary.data, time]);
+    void syncDailyReminder(summary.data, time, bills.data ?? []);
+  }, [summary.data, time, bills.data]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {

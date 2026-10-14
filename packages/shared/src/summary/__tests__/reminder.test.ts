@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeMonthSummary } from '../compute-month-summary.js';
-import { buildReminderSchedule } from '../reminder.js';
+import { buildBillReminders, buildReminderSchedule } from '../reminder.js';
 
 const TODAY = { year: 2026, month: 9, day: 21 };
 const summary = computeMonthSummary({
@@ -127,5 +127,34 @@ describe('buildReminderSchedule', () => {
 
   it('rejects malformed times', () => {
     expect(() => buildReminderSchedule(summary, TODAY, '24:00', new Date())).toThrow(RangeError);
+  });
+});
+
+describe('buildBillReminders', () => {
+  const bills = [
+    { id: 'b1', issuer: 'Luz', amount: '62000.00', dueOn: '2026-09-23', status: 'UNPAID' as const },
+    {
+      id: 'b2',
+      issuer: 'Colegio',
+      amount: '150000.00',
+      dueOn: '2026-09-22',
+      status: 'PENDING' as const,
+    },
+    { id: 'b3', issuer: 'Gas', amount: '9000.00', dueOn: '2026-09-23', status: 'PAID' as const },
+    { id: 'b4', issuer: 'Lejos', amount: '1.00', dueOn: '2026-12-01', status: 'UNPAID' as const },
+  ];
+
+  it('reminds the day before and the morning of each unpaid due date, at 10:00 ART', () => {
+    const entries = buildBillReminders(bills, TODAY, new Date('2026-09-21T12:00:00Z'));
+    expect(entries.map((e) => [e.at.toISOString(), e.title])).toEqual([
+      ['2026-09-21T13:00:00.000Z', 'Mañana vence Colegio'],
+      ['2026-09-22T13:00:00.000Z', 'Mañana vence Luz'],
+      ['2026-09-22T13:00:00.000Z', 'Hoy vence Colegio'],
+      ['2026-09-23T13:00:00.000Z', 'Hoy vence Luz'],
+    ]);
+    expect(entries[1]?.body).toBe('$62.000. Si ya lo pagaste, marcalo en Tu mes.');
+    // Later the same morning, the reminders already past are skipped.
+    const later = buildBillReminders(bills, TODAY, new Date('2026-09-21T14:00:00Z'));
+    expect(later).toHaveLength(3);
   });
 });

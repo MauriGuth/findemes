@@ -4,12 +4,15 @@ import { useMemo } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
+import { BILL_KIND_LABEL, dueLabel } from '@/lib/bills';
 import { currentMonthKey, dayLabel, isoToCalendar } from '@/lib/format';
 import {
   errorMessage,
+  useBills,
   useCatalog,
   useSummary,
   useTransactions,
+  useUpdateBill,
   useUpdateTransaction,
 } from '@/lib/hooks';
 
@@ -32,7 +35,8 @@ function Line({ tx, source }: { tx: Transaction; source: string | undefined }) {
       <View className="flex-1 gap-0.5 pr-2">
         <Text className="text-base text-white">{tx.merchantRaw ?? METHOD[tx.method]}</Text>
         <Muted>
-          {source ?? 'Cargado a mano'} · {dayLabel(isoToCalendar(tx.occurredAt))} {time}
+          {source ?? (tx.origin === 'MANUAL' ? 'Cargado a mano' : 'Por correo')} ·{' '}
+          {dayLabel(isoToCalendar(tx.occurredAt))} {time}
         </Muted>
       </View>
       <Text
@@ -53,6 +57,8 @@ export default function PendingScreen() {
   const transactions = useTransactions(month);
   const catalog = useCatalog();
   const update = useUpdateTransaction();
+  const bills = useBills(month);
+  const updateBill = useUpdateBill();
 
   const byId = useMemo(
     () => new Map((transactions.data ?? []).map((t) => [t.id, t])),
@@ -83,7 +89,26 @@ export default function PendingScreen() {
     const manual = byId.get(p.manualId);
     return auto && manual ? [{ auto, manual }] : [];
   });
-  const empty = review.length + transfers.length + duplicates.length === 0;
+  const sameAcrossChannels = (pending?.crossChannelPairs ?? []).flatMap((p) => {
+    const keep = byId.get(p.keepId);
+    const drop = byId.get(p.dropId);
+    return keep && drop ? [{ keep, drop }] : [];
+  });
+  const reviewBills = (pending?.reviewBillIds ?? []).flatMap(
+    (id) => bills.data?.find((b) => b.id === id) ?? [],
+  );
+  const setBill = (id: string, status: 'UNPAID' | 'IGNORED') =>
+    updateBill.mutate(
+      { id, status },
+      { onError: (e) => Alert.alert('No se pudo guardar', errorMessage(e)) },
+    );
+  const empty =
+    review.length +
+      transfers.length +
+      duplicates.length +
+      sameAcrossChannels.length +
+      reviewBills.length ===
+    0;
 
   return (
     <Screen>
@@ -144,6 +169,69 @@ export default function PendingScreen() {
                   <Chip
                     label="Son distintos"
                     onPress={() => void run([{ id: auto.id, status: 'CONFIRMED' }])}
+                  />
+                </Row>
+              </Card>
+            ))}
+          </View>
+        ) : null}
+
+        {reviewBills.length > 0 ? (
+          <View className="gap-3">
+            <Text className="text-lg font-semibold text-white">Detectamos estas facturas</Text>
+            <Muted>Las leímos de tus correos y ya se restan de lo que te queda.</Muted>
+            {reviewBills.map((bill) => (
+              <Card key={bill.id}>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 gap-0.5 pr-2">
+                    <Text className="text-base text-white">{bill.issuer}</Text>
+                    <Muted>
+                      {BILL_KIND_LABEL[bill.kind]} · {dueLabel(bill.dueOn)}
+                    </Muted>
+                  </View>
+                  <Text className="text-base font-semibold text-white">
+                    {formatArs(bill.amount)}
+                  </Text>
+                </View>
+                <Row>
+                  <Chip label="Está bien" onPress={() => setBill(bill.id, 'UNPAID')} />
+                  <Chip
+                    label="Ver"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/bills/[id]',
+                        params: { id: bill.id, month },
+                      })
+                    }
+                  />
+                  <Chip label="No es mía" onPress={() => setBill(bill.id, 'IGNORED')} />
+                </Row>
+              </Card>
+            ))}
+          </View>
+        ) : null}
+
+        {sameAcrossChannels.length > 0 ? (
+          <View className="gap-3">
+            <Text className="text-lg font-semibold text-white">¿Es el mismo pago?</Text>
+            {sameAcrossChannels.map(({ keep, drop }) => (
+              <Card key={drop.id}>
+                <Line tx={keep} source={sourceName(keep.sourceId)} />
+                <Line tx={drop} source={undefined} />
+                <Muted>Te llegó por notificación y también por correo.</Muted>
+                <Row>
+                  <Chip
+                    label="Es el mismo"
+                    onPress={() =>
+                      void run([
+                        { id: drop.id, status: 'IGNORED' },
+                        { id: keep.id, status: 'CONFIRMED' },
+                      ])
+                    }
+                  />
+                  <Chip
+                    label="Son distintos"
+                    onPress={() => void run([{ id: drop.id, status: 'CONFIRMED' }])}
                   />
                 </Row>
               </Card>

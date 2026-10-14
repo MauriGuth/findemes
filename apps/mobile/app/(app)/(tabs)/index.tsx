@@ -127,7 +127,9 @@ export default function HomeScreen() {
   const toReview =
     (s?.pending.reviewTransactionIds.length ?? 0) +
     (s?.pending.ownTransferPairs.length ?? 0) +
-    (s?.pending.possibleDuplicatePairs.length ?? 0);
+    (s?.pending.possibleDuplicatePairs.length ?? 0) +
+    (s?.pending.crossChannelPairs.length ?? 0) +
+    (s?.pending.reviewBillIds.length ?? 0);
   const dueUnpaid = (s?.commitments.items ?? []).filter(
     (c) => s?.pending.unpaidDueCommitmentIds.includes(c.id) && !dismissed.includes(c.id),
   );
@@ -165,6 +167,21 @@ export default function HomeScreen() {
           </Card>
         ) : null}
 
+        {s && s.bills.unpaid !== '0.00' ? (
+          <Card>
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1 gap-0.5">
+                <Muted>Facturas por pagar</Muted>
+                <Text className="text-xl font-semibold text-white">
+                  {formatArs(s.bills.unpaid, { cents: false })}
+                </Text>
+                <Muted>Ya están restadas de lo que te queda.</Muted>
+              </View>
+              <Chip label="Ver" onPress={() => router.push('/(app)/(tabs)/plan')} />
+            </View>
+          </Card>
+        ) : null}
+
         {s &&
         (s.pending.needsPlan ||
           toReview > 0 ||
@@ -178,8 +195,8 @@ export default function HomeScreen() {
               <View className="flex-row items-center justify-between gap-2">
                 <Muted className="flex-1">
                   {toReview === 1
-                    ? 'Detectamos 1 movimiento para revisar.'
-                    : `Detectamos ${String(toReview)} movimientos para revisar.`}
+                    ? 'Detectamos 1 cosa para revisar.'
+                    : `Detectamos ${String(toReview)} cosas para revisar.`}
                 </Muted>
                 <Chip label="Revisar" onPress={() => router.push('/(app)/pending')} />
               </View>
@@ -289,20 +306,24 @@ export default function HomeScreen() {
                   {formatArs(s.statement.previous.amount, { cents: false })}?
                 </Muted>
                 <Row>
-                  <Chip
-                    label="Sí, pagué"
-                    onPress={() =>
-                      createTx.mutate(
-                        {
-                          amount: s.statement.previous.amount,
-                          method: 'DEBIT',
-                          merchantRaw: 'Resumen de tarjeta',
-                          isStatementPayment: true,
-                        },
-                        { onError: fail },
-                      )
-                    }
-                  />
+                  {s.statement.previous.source === 'bill' ? (
+                    <Chip label="Ver en Tu mes" onPress={() => router.push('/(app)/(tabs)/plan')} />
+                  ) : (
+                    <Chip
+                      label="Sí, pagué"
+                      onPress={() =>
+                        createTx.mutate(
+                          {
+                            amount: s.statement.previous.amount,
+                            method: 'DEBIT',
+                            merchantRaw: 'Resumen de tarjeta',
+                            isStatementPayment: true,
+                          },
+                          { onError: fail },
+                        )
+                      }
+                    />
+                  )}
                 </Row>
               </View>
             ) : null}

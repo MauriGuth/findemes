@@ -69,3 +69,50 @@ export function buildReminderSchedule(
 
   return entries;
 }
+
+/** What the app needs from a bill to remind about it. */
+export interface BillReminderInput {
+  id: string;
+  issuer: string;
+  amount: string;
+  /** "YYYY-MM-DD" */
+  dueOn: string;
+  status: 'PENDING' | 'UNPAID' | 'PAID' | 'IGNORED';
+}
+
+const BILL_REMINDER_HOUR = 10;
+
+/**
+ * Local notifications for "Por pagar" (ADR 013): the day before and the morning of each
+ * unpaid due date, at 10:00 Argentina, within `horizonDays`. Past entries are skipped.
+ */
+export function buildBillReminders(
+  bills: readonly BillReminderInput[],
+  today: CalendarDate,
+  now: Date,
+  horizonDays = 14,
+): ReminderEntry[] {
+  const last = artMidnight(addDays(today, horizonDays + 1)).getTime();
+  const entries: ReminderEntry[] = [];
+  for (const bill of bills) {
+    if (bill.status !== 'PENDING' && bill.status !== 'UNPAID') continue;
+    const [year, month, day] = bill.dueOn.split('-').map(Number);
+    if (!year || !month || !day) continue;
+    const due = { year, month, day };
+    const at = (date: CalendarDate) =>
+      new Date(artMidnight(date).getTime() + BILL_REMINDER_HOUR * 60 * MS_PER_MINUTE);
+    const amount = money(bill.amount);
+    for (const entry of [
+      { at: at(addDays(due, -1)), title: `Mañana vence ${bill.issuer}` },
+      { at: at(due), title: `Hoy vence ${bill.issuer}` },
+    ]) {
+      if (entry.at.getTime() <= now.getTime() || entry.at.getTime() >= last) continue;
+      entries.push({
+        at: entry.at,
+        title: entry.title,
+        body: `${amount}. Si ya lo pagaste, marcalo en Tu mes.`,
+      });
+    }
+  }
+  return entries.sort((a, b) => a.at.getTime() - b.at.getTime());
+}

@@ -20,6 +20,8 @@ export default function AppLayout() {
         <Stack.Screen name="pending" options={{ presentation: 'modal' }} />
         <Stack.Screen name="capture/intro" options={{ presentation: 'modal' }} />
         <Stack.Screen name="capture/samples" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="email" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="bills/[id]" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

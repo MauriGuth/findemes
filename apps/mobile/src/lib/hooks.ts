@@ -1,5 +1,10 @@
 import {
+  type Bill,
   type Category,
+  type CreateBillInput,
+  type InboundAddress,
+  type PayBillInput,
+  type UpdateBillInput,
   type Commitment,
   type CreateCommitmentInput,
   type CreateInstallmentPurchaseInput,
@@ -30,6 +35,9 @@ export const keys = {
   commitments: (includeInactive: boolean) => ['commitments', includeInactive] as const,
   me: ['me'] as const,
   catalog: ['catalog'] as const,
+  bills: (month: MonthKey) => ['bills', month] as const,
+  billCandidates: (id: string) => ['bill-candidates', id] as const,
+  inbound: ['inbound'] as const,
 };
 
 /** Everything money-related depends on everything else: invalidate broadly, it is cheap. */
@@ -42,6 +50,8 @@ export function useInvalidateMoney() {
       qc.invalidateQueries({ queryKey: ['transaction'] }),
       qc.invalidateQueries({ queryKey: ['plan'] }),
       qc.invalidateQueries({ queryKey: ['commitments'] }),
+      qc.invalidateQueries({ queryKey: ['bills'] }),
+      qc.invalidateQueries({ queryKey: ['bill-candidates'] }),
     ]);
 }
 
@@ -114,6 +124,42 @@ export function useCatalog() {
   });
 }
 
+/** "Por pagar": bills due in the month plus unpaid ones overdue (ADR 013). */
+export function useBills(month: MonthKey = currentMonthKey()) {
+  return useQuery({
+    queryKey: keys.bills(month),
+    queryFn: async () => (await apiGet<{ items: Bill[] }>(`/bills?month=${month}`)).items,
+  });
+}
+
+export function useBillCandidates(id: string) {
+  return useQuery({
+    queryKey: keys.billCandidates(id),
+    queryFn: () => apiGet<Transaction[]>(`/bills/${id}/candidates`),
+    enabled: id.length > 0,
+  });
+}
+
+/** The forwarding address; refetched every 15 s until the first email or Gmail's code. */
+export function useInboundAddress() {
+  return useQuery({
+    queryKey: keys.inbound,
+    queryFn: () => apiGet<InboundAddress>('/me/inbound'),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.address && !data.gmailConfirmation && !data.lastEmailAt ? 15_000 : false;
+    },
+  });
+}
+
+export function useRotateInbound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<InboundAddress>('/me/inbound/rotate'),
+    onSuccess: (data) => qc.setQueryData(keys.inbound, data),
+  });
+}
+
 export function useMe() {
   const setUser = useSession((s) => s.setUser);
   return useQuery({
@@ -156,6 +202,16 @@ export const useCreateCommitment = () =>
 export const useUpdateCommitment = () =>
   useMoneyMutation(({ id, ...input }: UpdateCommitmentInput & { id: string }) =>
     apiPatch<Commitment>(`/commitments/${id}`, input),
+  );
+export const useCreateBill = () =>
+  useMoneyMutation((input: CreateBillInput) => apiPost<Bill>('/bills', input));
+export const useUpdateBill = () =>
+  useMoneyMutation(({ id, ...input }: UpdateBillInput & { id: string }) =>
+    apiPatch<Bill>(`/bills/${id}`, input),
+  );
+export const usePayBill = () =>
+  useMoneyMutation(({ id, ...input }: PayBillInput & { id: string }) =>
+    apiPost<Bill>(`/bills/${id}/payments`, input),
   );
 export const useDeleteCommitment = () =>
   useMoneyMutation((id: string) => apiDelete<void>(`/commitments/${id}`));

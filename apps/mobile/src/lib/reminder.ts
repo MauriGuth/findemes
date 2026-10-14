@@ -1,4 +1,10 @@
-import { buildReminderSchedule, type MonthSummary, todayInArt } from '@findemes/shared';
+import {
+  type BillReminderInput,
+  buildBillReminders,
+  buildReminderSchedule,
+  type MonthSummary,
+  todayInArt,
+} from '@findemes/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -57,13 +63,18 @@ export async function cancelDailyReminder(): Promise<void> {
 export async function syncDailyReminder(
   summary: MonthSummary | undefined,
   time: string | null,
+  bills: readonly BillReminderInput[] = [],
 ): Promise<void> {
   await cancelDailyReminder();
   if (!summary || !time) return;
   if (!(await hasReminderPermission())) return;
   await ensureReminderChannel();
 
-  const entries = buildReminderSchedule(summary, todayInArt(), time, new Date());
+  // Same switch as the daily reminder: "Por pagar" due dates ride along (ADR 013).
+  const entries = [
+    ...buildReminderSchedule(summary, todayInArt(), time, new Date()),
+    ...buildBillReminders(bills, todayInArt(), new Date()),
+  ];
   await Promise.all(
     entries.map((entry) =>
       Notifications.scheduleNotificationAsync({
