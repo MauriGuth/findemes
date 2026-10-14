@@ -77,6 +77,18 @@ export default function TransactionDetailScreen() {
           onPress={confirmDelete}
           loading={remove.isPending}
         />
+        {tx.data.receiptId ? (
+          <Button
+            label="Ver el ticket"
+            variant="secondary"
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/receipts/[id]',
+                params: { id: tx.data.receiptId ?? '' },
+              })
+            }
+          />
+        ) : null}
       </Row>
       <TransactionForm key={tx.data.updatedAt} existing={tx.data} />
     </Screen>

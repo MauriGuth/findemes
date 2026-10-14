@@ -32,6 +32,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-dev-client',
     'expo-secure-store',
+    // Ticket photos (ADR 014): camera and gallery, never the microphone.
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Findemes usa tus fotos solo para leer los tickets que elegís.',
+        cameraPermission: 'Findemes usa la cámara para sacarle foto a tus tickets.',
+        microphonePermission: false,
+      },
+    ],
     // Local notifications only. No defaultChannel here: that option is for FCM push.
     ['expo-notifications', { icon: './assets/android-icon-monochrome.png', color: '#22C55E' }],
     [

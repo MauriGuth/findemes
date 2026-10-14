@@ -403,7 +403,7 @@ export default function HomeScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Cargar un movimiento"
-        onPress={() => router.push('/(app)/transactions/new')}
+        onPress={() => router.push('/(app)/add')}
         className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full bg-accent"
       >
         <Text className="text-3xl font-bold text-ink">+</Text>

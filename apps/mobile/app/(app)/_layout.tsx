@@ -22,6 +22,10 @@ export default function AppLayout() {
         <Stack.Screen name="capture/samples" options={{ presentation: 'modal' }} />
         <Stack.Screen name="email" options={{ presentation: 'modal' }} />
         <Stack.Screen name="bills/[id]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="entries/new" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="receipts/[id]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="chats" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

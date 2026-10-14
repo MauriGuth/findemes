@@ -192,6 +192,16 @@ export default function SettingsScreen() {
         </Card>
 
         <Card>
+          <Text className="text-base text-white">Chats</Text>
+          <Muted>Mandá fotos de tickets o escribí lo que gastaste por Telegram o WhatsApp.</Muted>
+          <Button
+            label="Configurar"
+            variant="secondary"
+            onPress={() => router.push('/(app)/chats')}
+          />
+        </Card>
+
+        <Card>
           <Button
             label="Privacidad"
             variant="secondary"

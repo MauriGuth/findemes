@@ -1,4 +1,9 @@
 import {
+  type ChatChannel,
+  type ChatLink,
+  type EntryDraft,
+  type Features,
+  type Receipt,
   type Bill,
   type Category,
   type CreateBillInput,
@@ -38,6 +43,10 @@ export const keys = {
   bills: (month: MonthKey) => ['bills', month] as const,
   billCandidates: (id: string) => ['bill-candidates', id] as const,
   inbound: ['inbound'] as const,
+  features: ['features'] as const,
+  receipts: ['receipts'] as const,
+  receipt: (id: string) => ['receipt', id] as const,
+  chats: ['chats'] as const,
 };
 
 /** Everything money-related depends on everything else: invalidate broadly, it is cheap. */
@@ -157,6 +166,77 @@ export function useRotateInbound() {
   return useMutation({
     mutationFn: () => apiPost<InboundAddress>('/me/inbound/rotate'),
     onSuccess: (data) => qc.setQueryData(keys.inbound, data),
+  });
+}
+
+/** Optional integrations the server has configured (ADR 014). */
+export function useFeatures() {
+  return useQuery({
+    queryKey: keys.features,
+    staleTime: 10 * 60_000,
+    queryFn: () => apiGet<Features>('/features'),
+  });
+}
+
+/** A ticket; polled every 2 s while Claude reads it. */
+export function useReceipt(id: string) {
+  const invalidate = useInvalidateMoney();
+  return useQuery({
+    queryKey: keys.receipt(id),
+    enabled: id.length > 0,
+    queryFn: async () => {
+      const receipt = await apiGet<Receipt>(`/receipts/${id}`);
+      if (receipt.status !== 'UPLOADED') void invalidate();
+      return receipt;
+    },
+    refetchInterval: (query) => (query.state.data?.status === 'UPLOADED' ? 2_000 : false),
+  });
+}
+
+export function useRetryReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiPost<Receipt>(`/receipts/${id}/retry`),
+    onSuccess: (receipt) => qc.setQueryData(keys.receipt(receipt.id), receipt),
+  });
+}
+
+export const useDeleteReceipt = () =>
+  useMoneyMutation((id: string) => apiDelete<void>(`/receipts/${id}`));
+
+export function useParseEntry() {
+  return useMutation({
+    mutationFn: async (text: string) =>
+      (await apiPost<{ drafts: EntryDraft[] }>('/entries/parse', { text })).drafts,
+  });
+}
+
+export const useSaveEntries = () =>
+  useMoneyMutation(
+    async (drafts: EntryDraft[]) =>
+      (await apiPost<{ items: Transaction[] }>('/entries', { drafts })).items,
+  );
+
+/** Linked chats; refetched every 5 s while a link is pending so the screen updates by itself. */
+export function useChats() {
+  return useQuery({
+    queryKey: keys.chats,
+    queryFn: () => apiGet<ChatLink>('/me/chats'),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const waiting =
+        (data?.telegram.available && !data.telegram.linked) ||
+        (data?.whatsapp.available && !data.whatsapp.linked);
+      return waiting ? 5_000 : false;
+    },
+  });
+}
+
+export function useUnlinkChat() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (channel: ChatChannel) => apiDelete<void>(`/me/chats/${channel}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.chats }),
   });
 }
 
