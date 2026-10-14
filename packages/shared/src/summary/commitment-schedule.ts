@@ -1,6 +1,6 @@
+import { dueDateInPeriod } from '../dates/period.js';
 import {
   addMonths,
-  clampDayOfMonth,
   compareMonthKey,
   formatIsoDate,
   type IsoDate,
@@ -8,7 +8,6 @@ import {
   monthKeyOfIso,
   monthsBetween,
   parseIsoDate,
-  parseMonthKey,
 } from '../dates/tz.js';
 import { type PaymentMethod } from '../schemas/enums.js';
 import { type SummaryCommitmentInput } from './types.js';
@@ -32,9 +31,16 @@ export interface CommitmentMonthState {
   installmentsLeft: number | null;
 }
 
-/** Due date and "installment N of M" for a given month. */
-export function commitmentMonthState(c: ScheduleInput, month: MonthKey): CommitmentMonthState {
-  const dueOn = formatIsoDate(clampDayOfMonth(c.dayOfMonth, parseMonthKey(month)));
+/**
+ * Due date and "installment N of M" for a given month (or payday period: with payday p the
+ * due day falls inside [p of month, p of next month)).
+ */
+export function commitmentMonthState(
+  c: ScheduleInput,
+  month: MonthKey,
+  payday = 1,
+): CommitmentMonthState {
+  const dueOn = formatIsoDate(dueDateInPeriod(c.dayOfMonth, month, payday));
   if (c.installmentsTotal === null) {
     return { dueOn, installmentNumber: null, installmentsLeft: null };
   }

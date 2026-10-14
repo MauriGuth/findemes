@@ -4,3 +4,4 @@ export * from './schemas/index.js';
 export * from './summary/index.js';
 export * from './parsers/index.js';
 export * from './receipts/index.js';
+export * from './insights/index.js';

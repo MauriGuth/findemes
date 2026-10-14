@@ -25,6 +25,7 @@ import { RawEventCrypto } from '../ingest/raw-event-crypto.js';
 import { ASSIST_CAP_MESSAGE, AssistUsageService } from '../llm/assist-usage.service.js';
 import { LLM_PROVIDER, LlmRejectedError, type LlmProvider } from '../llm/llm.provider.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AlertsService } from '../push/alerts.service.js';
 import { StorageService } from '../storage/storage.service.js';
 
 export const RECEIPTS_UNAVAILABLE = 'La lectura de tickets todavía no está disponible.';
@@ -70,6 +71,7 @@ export class ReceiptsService {
     private readonly usage: AssistUsageService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider | null,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly alerts: AlertsService,
   ) {}
 
   get enabled(): boolean {
@@ -286,14 +288,16 @@ export class ReceiptsService {
           },
         }),
       ]);
+      const categoryId = this.mainCategory(items);
       await this.link(receipt.userId, id, {
         total,
         currency: value.currency,
         at: issuedAt ?? receipt.createdAt,
         merchant,
         method: value.paymentMethodHint,
-        categoryId: this.mainCategory(items),
+        categoryId,
       });
+      this.alerts.categoryTouched(receipt.userId, categoryId);
     } catch (error) {
       await fail('llm_error');
       this.logger.error(`receipt.error receipt=${id} ${error instanceof Error ? error.name : ''}`);

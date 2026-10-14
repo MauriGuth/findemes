@@ -3,6 +3,7 @@ import { z } from 'zod';
 const NodeEnv = z.enum(['development', 'test', 'production']);
 const MailProviderName = z.enum(['console', 'fake', 'resend']);
 const LlmProviderName = z.enum(['anthropic', 'fake', 'none']);
+const PushProviderName = z.enum(['expo', 'fake', 'none']);
 
 /** Keys that ship in .env.example / the test setup; refused in production. */
 export const DEV_RAW_EVENT_KEY = Buffer.from('dev-only-raw-event-key-000000000').toString('base64');
@@ -129,14 +130,24 @@ export const EnvSchema = z.object({
     .string()
     .regex(/^\d{8,15}$/)
     .optional(),
+
+  // ── push alerts (Phase 5, ADR 015) ──
+  /** Defaults: test→fake, otherwise expo (needs nothing on our side). */
+  PUSH_PROVIDER: PushProviderName.optional(),
+  /** Only when "enhanced push security" is on in the Expo project. */
+  EXPO_ACCESS_TOKEN: z.string().min(10).optional(),
 });
 
 type ParsedEnv = z.output<typeof EnvSchema>;
 
-export type Env = Omit<ParsedEnv, 'SWAGGER_ENABLED' | 'MAIL_PROVIDER' | 'LLM_PROVIDER'> & {
+export type Env = Omit<
+  ParsedEnv,
+  'SWAGGER_ENABLED' | 'MAIL_PROVIDER' | 'LLM_PROVIDER' | 'PUSH_PROVIDER'
+> & {
   SWAGGER_ENABLED: boolean;
   MAIL_PROVIDER: z.infer<typeof MailProviderName>;
   LLM_PROVIDER: z.infer<typeof LlmProviderName>;
+  PUSH_PROVIDER: z.infer<typeof PushProviderName>;
 };
 
 const DEFAULT_MAIL_PROVIDER: Record<z.infer<typeof NodeEnv>, Env['MAIL_PROVIDER']> = {
@@ -158,6 +169,7 @@ export function validateEnv(config: Record<string, unknown>): Env {
     LLM_PROVIDER:
       data.LLM_PROVIDER ??
       (data.NODE_ENV === 'test' ? 'fake' : data.ANTHROPIC_API_KEY ? 'anthropic' : 'none'),
+    PUSH_PROVIDER: data.PUSH_PROVIDER ?? (data.NODE_ENV === 'test' ? 'fake' : 'expo'),
   };
 
   const problems: string[] = [];

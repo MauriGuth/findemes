@@ -15,12 +15,13 @@ import {
   CreateBillSchema,
   formatIsoDate,
   type MonthKey,
-  monthKeyOfIso,
   normalizeMerchant,
   parseIsoDate,
-  parseMonthKey,
   type PayBillInput,
-  startOfNextMonth,
+  periodEnd,
+  periodKeyOf,
+  periodKeyOfIso,
+  periodStart,
   todayInArt,
   type Transaction,
   type UpdateBillInput,
@@ -28,6 +29,7 @@ import {
 
 import { CLOCK, type Clock } from '../common/clock.js';
 import { dateToIso, dateToMonthKey, isoToDate, monthKeyToDate, toMoney } from '../common/dto.js';
+import { loadPayday } from '../common/payday.js';
 import { type Bill as BillRow, Prisma } from '../generated/prisma/client.js';
 import { ReferencesService } from '../plans/references.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -104,15 +106,15 @@ export class BillsService {
 
   /** Due in the month (default: current) plus unpaid ones overdue up to BILL_OVERDUE_DAYS. */
   async list(userId: string, month?: MonthKey): Promise<Bill[]> {
-    const first = month
-      ? parseMonthKey(month)
-      : parseMonthKey(monthKeyOfIso(formatIsoDate(todayInArt(this.clock.now()))));
+    const payday = await loadPayday(this.prisma, userId);
+    const period = month ?? periodKeyOf(todayInArt(this.clock.now()), payday);
+    const first = periodStart(period, payday);
     const start = isoToDate(formatIsoDate(first));
     const rows = await this.prisma.bill.findMany({
       where: {
         userId,
         OR: [
-          { dueOn: { gte: start, lt: isoToDate(formatIsoDate(startOfNextMonth(first))) } },
+          { dueOn: { gte: start, lt: isoToDate(formatIsoDate(periodEnd(period, payday))) } },
           {
             status: { in: ['PENDING', 'UNPAID'] },
             dueOn: { gte: isoToDate(formatIsoDate(addDays(first, -BILL_OVERDUE_DAYS))), lt: start },
@@ -215,7 +217,9 @@ export class BillsService {
             ? [
                 {
                   commitmentId: bill.commitmentId,
-                  commitmentMonth: isoToDate(`${monthKeyOfIso(dateToIso(bill.dueOn))}-01`),
+                  commitmentMonth: monthKeyToDate(
+                    periodKeyOfIso(dateToIso(bill.dueOn), await loadPayday(this.prisma, userId)),
+                  ),
                 },
               ]
             : []),
@@ -257,7 +261,9 @@ export class BillsService {
 
     const statement = bill.kind === 'CARD_STATEMENT';
     const commitmentMonth =
-      bill.commitmentId && !statement ? monthKeyOfIso(dateToIso(bill.dueOn)) : null;
+      bill.commitmentId && !statement
+        ? periodKeyOfIso(dateToIso(bill.dueOn), await loadPayday(this.prisma, userId))
+        : null;
     let transactionId: string;
 
     if (input.transactionId) {

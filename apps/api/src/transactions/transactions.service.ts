@@ -6,25 +6,26 @@ import {
   compareMoney,
   type CreateTransaction,
   type ListTransactionsQuery,
-  monthKey,
-  type MonthKey,
-  monthRange,
-  nextMonthKey,
+  formatIsoDate,
+  isoToDateColumn,
+  periodKeyOfInstant,
+  periodRange,
   type PayCommitmentInput,
   subtractMoney,
   sumMoney,
   toArtCalendarDate,
-  todayInArt,
   type Transaction,
   type UpdateTransactionInput,
 } from '@findemes/shared';
 
 import { CLOCK, type Clock } from '../common/clock.js';
 import { monthKeyToDate, toMoney } from '../common/dto.js';
+import { loadPayday } from '../common/payday.js';
 import { CommitmentsService } from '../plans/commitments.service.js';
 import { PlansService } from '../plans/plans.service.js';
 import { ReferencesService } from '../plans/references.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AlertsService } from '../push/alerts.service.js';
 import { toTransactionDto, transactionInclude } from './transaction.dto.js';
 
 const MAX_LIST = 500;
@@ -37,15 +38,13 @@ export class TransactionsService {
     private readonly plans: PlansService,
     private readonly commitments: CommitmentsService,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly alerts: AlertsService,
   ) {}
 
-  private currentMonth(): MonthKey {
-    return monthKey(todayInArt(this.clock.now()));
-  }
-
   async list(userId: string, query: ListTransactionsQuery): Promise<Transaction[]> {
-    const month = query.month ?? this.currentMonth();
-    const { start, end } = monthRange(month);
+    const payday = await loadPayday(this.prisma, userId);
+    const month = query.month ?? periodKeyOfInstant(this.clock.now(), payday);
+    const { start, end } = periodRange(month, payday);
     const rows = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -75,7 +74,7 @@ export class TransactionsService {
       this.refs.assertCommitment(userId, input.commitmentId),
     ]);
     const occurredAt = input.occurredAt ? new Date(input.occurredAt) : this.clock.now();
-    const occurredMonth = monthKey(toArtCalendarDate(occurredAt));
+    const occurredMonth = periodKeyOfInstant(occurredAt, await loadPayday(this.prisma, userId));
 
     // Expenses count right away; an income counts only once the user said what it is (D7).
     const classified = input.markAsSalary || input.isOwnTransfer || input.status !== undefined;
@@ -135,6 +134,7 @@ export class TransactionsService {
       }
       return created;
     });
+    if (row.direction === 'OUT') this.alerts.categoryTouched(userId, row.categoryId);
     return toTransactionDto(row);
   }
 
@@ -158,7 +158,8 @@ export class TransactionsService {
       const requested = input.commitmentMonth !== undefined ? input.commitmentMonth : null;
       commitmentMonth = requested
         ? monthKeyToDate(requested)
-        : (current.commitmentMonth ?? monthKeyToDate(monthKey(toArtCalendarDate(occurredAt))));
+        : (current.commitmentMonth ??
+          monthKeyToDate(periodKeyOfInstant(occurredAt, await loadPayday(this.prisma, userId))));
     }
 
     const row = await this.prisma.$transaction(async (db) => {
@@ -199,6 +200,9 @@ export class TransactionsService {
       }
       return updated;
     });
+    if (row.direction === 'OUT' && input.categoryId !== undefined) {
+      this.alerts.categoryTouched(userId, row.categoryId);
+    }
     return toTransactionDto(row);
   }
 
@@ -219,7 +223,9 @@ export class TransactionsService {
   ): Promise<Transaction> {
     const commitment = await this.commitments.getOwned(userId, commitmentId);
     const occurredAt = input.occurredAt ? new Date(input.occurredAt) : this.clock.now();
-    const month = input.commitmentMonth ?? monthKey(toArtCalendarDate(occurredAt));
+    const payday = await loadPayday(this.prisma, userId);
+    const month = input.commitmentMonth ?? periodKeyOfInstant(occurredAt, payday);
+    const range = periodRange(month, payday);
 
     const paid = await this.prisma.transaction.findMany({
       where: {
@@ -238,7 +244,10 @@ export class TransactionsService {
         commitmentId,
         kind: { not: 'CARD_STATEMENT' },
         status: { in: ['PENDING', 'UNPAID', 'PAID'] },
-        dueOn: { gte: monthKeyToDate(month), lt: monthKeyToDate(nextMonthKey(month)) },
+        dueOn: {
+          gte: isoToDateColumn(formatIsoDate(toArtCalendarDate(range.start))),
+          lt: isoToDateColumn(formatIsoDate(toArtCalendarDate(range.end))),
+        },
       },
       include: { paidTransaction: { select: { status: true } } },
     });

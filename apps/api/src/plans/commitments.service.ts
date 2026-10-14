@@ -6,6 +6,7 @@ import {
   type CreateInstallmentPurchaseInput,
   installmentsEndsOn,
   monthKey,
+  periodKeyOf,
   type MonthKey,
   toArtCalendarDate,
   todayInArt,
@@ -15,6 +16,7 @@ import {
 import { CLOCK, type Clock } from '../common/clock.js';
 import { dateToIso, monthKeyToDate } from '../common/dto.js';
 import { type Commitment as CommitmentRow } from '../generated/prisma/client.js';
+import { loadPayday } from '../common/payday.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toCommitmentDto } from './plan.dto.js';
 import { ReferencesService } from './references.service.js';
@@ -50,7 +52,9 @@ export class CommitmentsService {
       this.refs.assertCategory(userId, input.categoryId),
       this.refs.assertSource(input.sourceId),
     ]);
-    const startsOn: MonthKey = input.startsOn ?? monthKey(todayInArt(this.clock.now()));
+    const startsOn: MonthKey =
+      input.startsOn ??
+      periodKeyOf(todayInArt(this.clock.now()), await loadPayday(this.prisma, userId));
     const endsOn = this.resolveEndsOn(
       input.kind,
       startsOn,

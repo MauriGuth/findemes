@@ -5,13 +5,13 @@ import {
   type CalendarDate,
   computeMonthSummary,
   formatIsoDate,
-  monthKey,
   type MonthKey,
-  monthRange,
   type MonthSummary,
-  parseMonthKey,
+  periodEnd,
+  periodKeyOf,
+  periodRange,
+  periodStart,
   previousMonthKey,
-  startOfNextMonth,
   type SummaryBillInput,
   type SummaryCommitmentInput,
   type SummaryTransactionInput,
@@ -20,6 +20,7 @@ import {
 
 import { CLOCK, type Clock } from '../common/clock.js';
 import { dateToIso, dateToMonthKey, isoToDate, monthKeyToDate, toMoney } from '../common/dto.js';
+import { loadPayday } from '../common/payday.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 interface PlanInput {
@@ -37,20 +38,22 @@ export class InsightsService {
   /** Runs the pure formula for the previous month (statement) and then for the requested one. */
   async summary(userId: string, requested?: MonthKey): Promise<MonthSummary> {
     const today = todayInArt(this.clock.now());
-    const month = requested ?? monthKey(today);
+    const payday = await loadPayday(this.prisma, userId);
+    const month = requested ?? periodKeyOf(today, payday);
     const previous = previousMonthKey(month);
 
     const [commitments, planM, planPrev, txM, txPrev, bills] = await Promise.all([
       this.loadCommitments(userId),
       this.loadPlan(userId, month),
       this.loadPlan(userId, previous),
-      this.loadTransactions(userId, month),
-      this.loadTransactions(userId, previous),
-      this.loadBills(userId, month),
+      this.loadTransactions(userId, month, payday),
+      this.loadTransactions(userId, previous, payday),
+      this.loadBills(userId, month, payday),
     ]);
 
     const previousSummary = computeMonthSummary({
       month: previous,
+      payday,
       today,
       plan: planPrev,
       previousPlan: null,
@@ -60,11 +63,13 @@ export class InsightsService {
     });
 
     const pairingTransactions = txPrev.filter(
-      (t) => new Date(t.occurredAt).getTime() >= monthRange(month).start.getTime() - 86_400_000,
+      (t) =>
+        new Date(t.occurredAt).getTime() >= periodRange(month, payday).start.getTime() - 86_400_000,
     );
 
     return computeMonthSummary({
       month,
+      payday,
       today,
       pairingTransactions,
       plan: planM,
@@ -82,14 +87,18 @@ export class InsightsService {
    * Bills due in the month or overdue up to BILL_OVERDUE_DAYS. A PAID bill whose payment
    * was deleted or ignored is owed again, so it goes in as UNPAID.
    */
-  private async loadBills(userId: string, month: MonthKey): Promise<SummaryBillInput[]> {
-    const first = parseMonthKey(month);
+  private async loadBills(
+    userId: string,
+    month: MonthKey,
+    payday: number,
+  ): Promise<SummaryBillInput[]> {
+    const first = periodStart(month, payday);
     const rows = await this.prisma.bill.findMany({
       where: {
         userId,
         dueOn: {
           gte: isoToDate(formatIsoDate(addDays(first, -BILL_OVERDUE_DAYS))),
-          lt: isoToDate(formatIsoDate(startOfNextMonth(first))),
+          lt: isoToDate(formatIsoDate(periodEnd(month, payday))),
         },
       },
       include: { paidTransaction: { select: { status: true } } },
@@ -144,12 +153,13 @@ export class InsightsService {
     };
   }
 
-  /** Movements of the month plus the ones settling a commitment in that month. */
+  /** Movements of the period plus the ones settling a commitment in that period. */
   private async loadTransactions(
     userId: string,
     month: MonthKey,
+    payday: number,
   ): Promise<SummaryTransactionInput[]> {
-    const { start, end } = monthRange(month);
+    const { start, end } = periodRange(month, payday);
     const rows = await this.prisma.transaction.findMany({
       where: {
         userId,

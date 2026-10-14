@@ -1,11 +1,11 @@
 import {
-  addDays,
-  daysLeftForMonth,
-  formatIsoDate,
-  isInArtDay,
-  isInArtMonth,
-  parseMonthKey,
-} from '../dates/tz.js';
+  daysLeftForPeriod,
+  isInPeriod,
+  isIsoInPeriod,
+  periodEnd,
+  periodStart,
+} from '../dates/period.js';
+import { addDays, formatIsoDate, isInArtDay } from '../dates/tz.js';
 import {
   addMoney,
   compareMoney,
@@ -68,10 +68,13 @@ function counts(t: SummaryTransactionInput): boolean {
  */
 export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   const { month, today } = input;
-  const monthStart = formatIsoDate(parseMonthKey(month));
-  const overdueFrom = formatIsoDate(addDays(parseMonthKey(month), -BILL_OVERDUE_DAYS));
+  // "Hasta que cobrés": the month runs from payday to payday; payday 1 = calendar month.
+  const payday = input.payday ?? 1;
+  const start = periodStart(month, payday);
+  const monthStart = formatIsoDate(start);
+  const overdueFrom = formatIsoDate(addDays(start, -BILL_OVERDUE_DAYS));
   const bills = (input.bills ?? []).filter((b) => b.currency === 'ARS' && b.status !== 'IGNORED');
-  const dueThisMonth = (b: SummaryBillInput) => b.dueOn.startsWith(month);
+  const dueThisMonth = (b: SummaryBillInput) => isIsoInPeriod(b.dueOn, month, payday);
   /** A commitment's bill for this month sets what that commitment costs this month. */
   const billOfCommitment = new Map(
     bills
@@ -79,7 +82,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
       .map((b) => [b.commitmentId, b]),
   );
   const inMonth = (t: SummaryTransactionInput): boolean =>
-    isInArtMonth(new Date(t.occurredAt), month);
+    isInPeriod(new Date(t.occurredAt), month, payday);
   const eligible = input.transactions.filter(isEligible);
   const eligibleInMonth = eligible.filter(inMonth);
 
@@ -139,7 +142,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     if (billed) pricedBillIds.add(billed.id);
     const amount = billed ? normalizeMoney(billed.amount) : normalizeMoney(c.amount);
     const unpaidAmount = applies ? nonNegative(subtractMoney(amount, paidAmount)) : ZERO;
-    const state = commitmentMonthState(c, month);
+    const state = commitmentMonthState(c, month, payday);
     const cash = commitmentIsCash(c.method);
 
     if (cash) unpaidCash = addMoney(unpaidCash, unpaidAmount);
@@ -180,7 +183,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     (t) =>
       isCashMethod(t.method) &&
       t.isStatementPayment &&
-      (!t.paysStatementDueOn || t.paysStatementDueOn.startsWith(month)),
+      (!t.paysStatementDueOn || isIsoInPeriod(t.paysStatementDueOn, month, payday)),
   );
   const outIds = new Set(outs.map((t) => t.id));
   const paidEarlier = statementBills.filter(
@@ -225,7 +228,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     unpaidBills,
   );
   const nextStatement = addMoney(spentCredit, unpaidCredit);
-  const daysLeft = daysLeftForMonth(month, today);
+  const daysLeft = daysLeftForPeriod(month, today, payday);
   const perDay =
     daysLeft > 0 && compareMoney(remaining, ZERO) > 0 ? divideMoney(remaining, daysLeft) : null;
 
@@ -259,6 +262,8 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   return {
     month,
     today: todayIso,
+    payday,
+    periodEnd: formatIsoDate(periodEnd(month, payday)),
     daysLeft,
     income: { total: incomeTotal, source, salary, expected, other },
     spent: { cash: spentCash, credit: spentCredit, today: spentToday },

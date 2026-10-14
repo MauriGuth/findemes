@@ -25,6 +25,8 @@ export const MonthSummarySchema = z
   .object({
     month: MonthKeySchema,
     today: IsoDateSchema,
+    payday: z.number().int().min(1).max(28),
+    periodEnd: IsoDateSchema,
     daysLeft: z.number().int().min(0),
     income: z.object({
       total: MoneyAmountSchema,

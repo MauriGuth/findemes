@@ -1,20 +1,36 @@
-import { Controller, Delete, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import {
   type IngestConfig,
   IngestConfigSchema,
   type IngestToken,
   IngestTokenSchema,
+  type PushTokenInput,
+  PushTokenSchema,
 } from '@findemes/shared';
 
 import { type AuthUser, CurrentUser } from '../auth/current-user.decorator.js';
+import { AlertsService } from '../push/alerts.service.js';
 import { IngestTokenService } from './ingest-token.service.js';
 
 @ApiTags('devices')
 @ApiBearerAuth()
 @Controller('devices/current')
 export class DevicesController {
-  constructor(private readonly tokens: IngestTokenService) {}
+  constructor(
+    private readonly tokens: IngestTokenService,
+    private readonly alerts: AlertsService,
+  ) {}
+
+  /** The phone's Expo push token for server alerts (null turns them off on this phone). */
+  @Put('push-token')
+  @HttpCode(204)
+  async pushToken(
+    @CurrentUser() user: AuthUser,
+    @Body({ schema: PushTokenSchema }) body: PushTokenInput,
+  ): Promise<void> {
+    await this.alerts.setToken(await this.tokens.deviceOf(user), body.token);
+  }
 
   /** Turns automatic capture on for this phone (or rotates its token). The token is shown once. */
   @Post('ingest-token')

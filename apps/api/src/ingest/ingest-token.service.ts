@@ -40,7 +40,7 @@ export class IngestTokenService {
     return createHash('sha256').update(raw).digest('hex');
   }
 
-  private async deviceOf(user: AuthUser): Promise<string> {
+  async deviceOf(user: AuthUser): Promise<string> {
     const row = await this.prisma.refreshToken.findFirst({
       where: { familyId: user.familyId, userId: user.id, deviceId: { not: null } },
       select: { deviceId: true },

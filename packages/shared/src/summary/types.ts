@@ -65,7 +65,10 @@ export interface SummaryCommitmentInput {
 }
 
 export interface MonthSummaryInput {
+  /** The period: from payday of this month to payday of the next (payday 1 = calendar month). */
   month: MonthKey;
+  /** Day of the month the user gets paid, 1..28 (default 1). */
+  payday?: number;
   /** Injected; never Date.now(). */
   today: CalendarDate;
   plan: {
@@ -120,6 +123,10 @@ export interface CommitmentSummaryItem {
 export interface MonthSummary {
   month: MonthKey;
   today: IsoDate;
+  /** Day of the month the user gets paid; the period ends the day before `periodEnd`. */
+  payday: number;
+  /** Next payday: first day of the next period (exclusive end). */
+  periodEnd: IsoDate;
   daysLeft: number;
   income: {
     total: MoneyAmount;

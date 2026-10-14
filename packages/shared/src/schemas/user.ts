@@ -13,6 +13,10 @@ export const UserSchema = z
     email: z.string(),
     name: z.string().nullable(),
     dailyReminderTime: ReminderTimeSchema.nullable(),
+    /** Day of the month the user gets paid (1..28): the month runs from payday to payday. */
+    payday: z.number().int().min(1).max(28),
+    /** Server push alerts: detected movements, incomes, budgets (Phase 5). */
+    pushAlerts: z.boolean(),
     createdAt: IsoDateTimeSchema,
   })
   .meta({ id: 'User' });
@@ -28,6 +32,13 @@ export const UpdateUserSchema = z
       .nullable()
       .optional(),
     dailyReminderTime: ReminderTimeSchema.nullable().optional(),
+    payday: z
+      .number()
+      .int()
+      .min(1, 'El día de cobro va del 1 al 28')
+      .max(28, 'El día de cobro va del 1 al 28')
+      .optional(),
+    pushAlerts: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { error: 'No hay nada para cambiar' });
 export type UpdateUserInput = z.input<typeof UpdateUserSchema>;

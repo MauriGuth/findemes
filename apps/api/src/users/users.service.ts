@@ -28,6 +28,8 @@ export class UsersService {
         ...(input.dailyReminderTime !== undefined
           ? { dailyReminderTime: input.dailyReminderTime }
           : {}),
+        ...(input.payday !== undefined ? { payday: input.payday } : {}),
+        ...(input.pushAlerts !== undefined ? { pushAlerts: input.pushAlerts } : {}),
       },
     });
     return toUserDto(user);

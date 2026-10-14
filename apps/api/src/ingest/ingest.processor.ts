@@ -24,6 +24,7 @@ import { type Env } from '../config/env.schema.js';
 import { Prisma, type TransactionOrigin } from '../generated/prisma/client.js';
 import { costMicros, LLM_PROVIDER, type LlmProvider } from '../llm/llm.provider.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AlertsService } from '../push/alerts.service.js';
 import { RawEventCrypto } from './raw-event-crypto.js';
 
 export type NotificationPayload = Required<{ [K in keyof NotificationParts]: string | null }>;
@@ -53,6 +54,7 @@ export class IngestProcessor {
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider | null,
     @Inject(CLOCK) private readonly clock: Clock,
     config: ConfigService<Env, true>,
+    private readonly alerts: AlertsService,
   ) {
     this.llmDailyCap = config.get('LLM_DAILY_CAP', { infer: true });
   }
@@ -248,7 +250,7 @@ export class IngestProcessor {
       .digest('hex');
 
     try {
-      await this.prisma.$transaction([
+      const [created] = await this.prisma.$transaction([
         this.prisma.transaction.create({
           data: {
             userId: raw.userId,
@@ -275,6 +277,7 @@ export class IngestProcessor {
       this.logger.log(
         `ingest.movement event=${raw.id} origin=${origin} confirmed=${String(confirmed)}`,
       );
+      this.alerts.movementDetected(raw.userId, created.id);
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       // Same user, source, amount, 2-minute bucket and merchant: the movement already exists.

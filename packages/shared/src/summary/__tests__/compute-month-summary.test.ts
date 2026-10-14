@@ -661,3 +661,72 @@ describe('T7 — bills by email (ADR 013)', () => {
     expect(s.spent.cash).toBe('50000.00');
   });
 });
+
+describe('T-payday — "hasta que cobrés" with payday 5 (Phase 5)', () => {
+  // Period 2026-09 = [5 Sep, 5 Oct). Today 2 Oct: still September's money, 3 days left.
+  const today = { year: 2026, month: 10, day: 2 };
+  const base = input({
+    payday: 5,
+    today,
+    commitments: [
+      alquiler, // day 10 → due 10 Sep, inside
+      commitment({ id: 'c-luz', name: 'Luz', kind: 'SERVICE', amount: '30000.00', dayOfMonth: 3 }),
+      // day 3 → due 3 Oct, inside the September period
+    ],
+    transactions: [
+      tx({ amount: '1000.00', occurredAt: '2026-09-04T15:00:00Z' }), // before payday: last period
+      tx({ amount: '2000.00', occurredAt: '2026-09-05T15:00:00Z' }), // first day of the period
+      tx({ amount: '4000.00', occurredAt: '2026-10-01T15:00:00Z' }), // October, still September's
+      tx({ amount: '8000.00', occurredAt: '2026-10-05T15:00:00Z' }), // next period
+    ],
+    bills: [
+      {
+        id: 'b-in',
+        kind: 'UTILITY',
+        issuer: 'Gas',
+        amount: '15000.00',
+        currency: 'ARS',
+        dueOn: '2026-10-04',
+        status: 'UNPAID',
+        commitmentId: null,
+      },
+      {
+        id: 'b-out',
+        kind: 'UTILITY',
+        issuer: 'Agua',
+        amount: '9000.00',
+        currency: 'ARS',
+        dueOn: '2026-10-05',
+        status: 'UNPAID',
+        commitmentId: null,
+      },
+    ],
+  });
+  const s = computeMonthSummary(base);
+
+  it('counts only the movements between paydays', () => {
+    expect(s.spent.cash).toBe('6000.00');
+    expect(s.payday).toBe(5);
+    expect(s.periodEnd).toBe('2026-10-05');
+    expect(s.daysLeft).toBe(3);
+  });
+
+  it('places due days before payday in the next calendar month', () => {
+    const luz = s.commitments.items.find((c) => c.id === 'c-luz');
+    expect(luz?.dueOn).toBe('2026-10-03');
+    expect(s.commitments.items.find((c) => c.id === 'c-1')?.dueOn).toBe('2026-09-10');
+    expect(s.commitments.unpaidCash).toBe('480000.00');
+  });
+
+  it('bills due inside the period count; the one due on payday belongs to the next', () => {
+    expect(s.bills.items.map((b) => b.id)).toEqual(['b-in']);
+    // 1.500.000 − 6.000 − 480.000 − 15.000
+    expect(s.remaining).toBe('999000.00');
+  });
+
+  it('payday 1 gives the calendar month, as before', () => {
+    const calendar = computeMonthSummary({ ...base, payday: 1, today: TODAY });
+    expect(calendar.spent.cash).toBe('3000.00');
+    expect(calendar.periodEnd).toBe('2026-10-01');
+  });
+});
