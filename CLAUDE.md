@@ -9,7 +9,7 @@
 - Registrá decisiones técnicas en docs/decisions/NNN-titulo.md (ADR corto). Mantené este CLAUDE.md actualizado cuando cambie algo estructural.
 
 ## El producto en una frase
-App personal de plata para Argentina que registra automáticamente todo lo que pagás — leyendo las notificaciones de bancos y billeteras (Android) y las fotos de tickets — y responde una sola pregunta en la pantalla principal: "¿Cuánto me queda hasta el 1?"
+App personal de plata para Argentina que registra automáticamente todo lo que pagás y todo lo que tenés que pagar — leyendo las notificaciones de bancos y billeteras (Android), los correos de bancos, tarjetas y facturas que el usuario reenvía, y las fotos de tickets (desde la app o por WhatsApp) — y responde una sola pregunta en la pantalla principal: "¿Cuánto me queda hasta que cobre?" (ADR 011). Referencia de producto: Lukas (lukas.jotatech.org), sin su enfoque offline.
 
 ### Por qué existe
 - En Argentina no hay open banking utilizable; las apps de finanzas personales mueren porque hay que cargar todo a mano.
@@ -21,8 +21,11 @@ App personal de plata para Argentina que registra automáticamente todo lo que p
 2. Motor de parsing: reglas determinísticas por app (templates versionadas en DB, actualizables sin release) + fallback con LLM para lo que no matchea + dedup.
 3. Tickets: foto → extracción estructurada con LLM con visión (comercio, CUIT, fecha, total, ítems) → vinculación con la transacción de la notificación si existe.
 4. Dashboard "Hasta el 1": ingreso del mes, compromisos fijos (alquiler, servicios, cuotas, débitos), gastado hasta hoy, proyección → "Te quedan $X para Y días ($Z por día)".
-5. iOS: la ingesta automática no es posible (iOS no permite leer notificaciones de otras apps). Canales iOS: (a) mail entrante — cada usuario tiene una dirección propia a la que reenvía los mails de sus bancos; (b) plantilla de Atajos (Shortcuts) que al recibir SMS/mail de un banco hace POST a la API; (c) carga rápida manual; (d) share extension (fase 4).
-6. Fuera del MVP: mapa de precios comunitario, gastos compartidos, presupuestos por categoría, conversión de moneda (USD se registra pero no se convierte), web app.
+5. iOS: la ingesta automática no es posible (iOS no permite leer notificaciones de otras apps). Canales iOS: (a) mail entrante — cada usuario tiene una dirección propia a la que reenvía los mails de sus bancos; (b) plantilla de Atajos (Shortcuts) que al recibir SMS/mail de un banco hace POST a la API; (c) carga rápida manual; (d) share extension (fase 6). El correo reenviado (punto 6) cubre iOS desde la Fase 3.
+6. Correo (Android e iOS): cada usuario tiene una dirección propia y arma una vez un filtro de reenvío en Gmail/Outlook. De ahí salen consumos de tarjeta, resúmenes (PDF: total, mínimo, vencimiento) y facturas de servicios, educación, prepaga → lista "Por pagar" con aviso antes del vencimiento. Nunca acceso OAuth al buzón (ADR 011).
+7. WhatsApp: un número de Findemes al que el usuario manda foto de ticket, audio o texto ("gasté 8 lucas en el kiosco") y se carga solo. Solo leemos lo que el usuario le manda a ese número.
+8. Personas con empresa: se leen también las apps de empresa de los bancos (Galicia Office, BBVA Empresas, BPN Pagos).
+9. Fuera del MVP: mapa de precios comunitario, gastos compartidos, conversión de moneda (USD se registra pero no se convierte), web app.
 
 ### Usuario objetivo y reglas de dominio (Argentina)
 - Persona de 20 a 45 años, sueldo mensual (cobra entre el 1 y el 5), varias billeteras y bancos, compras en cuotas, débitos automáticos, servicios que vencen.
@@ -42,7 +45,7 @@ App personal de plata para Argentina que registra automáticamente todo lo que p
 - LLM: Anthropic API (Claude) con tool use / JSON estricto para (a) extracción de tickets con visión, (b) fallback de parsing. Detrás de una interfaz LlmProvider. Regla: primero regex, LLM solo si no matchea; loggear costo por request; cap diario por usuario.
 - Archivos (fotos de tickets): storage S3-compatible (Cloudflare R2 o el bucket que yo configure). Nunca en el filesystem del contenedor.
 - Infra: Railway (api + Postgres + Redis), EAS para builds, GitHub Actions (lint, typecheck, test). Docker compose para Postgres/Redis local.
-- Mail entrante (fase 4): Resend/Postmark inbound o Cloudflare Email Workers; elegí y justificá en ADR.
+- Mail entrante (fase 3): por reenvío a una dirección por usuario (ADR 011). Proveedor de inbound (Resend/Postmark inbound o Cloudflare Email Workers): elegí y justificá en ADR al planificar la fase.
 
 ## Estructura del repo
     apps/
@@ -79,7 +82,7 @@ App personal de plata para Argentina que registra automáticamente todo lo que p
 Foto (cámara o galería) → compresión on-device (máx 1600 px, JPEG 80) → upload con URL prefirmada → POST /receipts → job: Claude con visión devuelve JSON con schema (merchant, cuit?, issuedAt, total, paymentMethodHint, items[]) → normalización de comercio → matching contra Transactions del usuario (mismo total ± $1 y ± 48 h) → si matchea, enlaza y enriquece con ítems; si no, crea Transaction method=cash pending → el usuario confirma. Guardar la extracción cruda en Receipt.extraction para reprocesar cuando mejore el prompt.
 
 ## Dashboard "Hasta el 1"
-- Header: "Te quedan $X hasta el 1 · $Z por día". X = ingreso del mes (confirmado o esperado) − compromisos fijos aún no pagados − gastos cash del mes. Aparte: "Próximo resumen de tarjeta: $C".
+- Header: "Te quedan $X hasta el 1 · $Z por día" (desde la Fase 5: "hasta que cobrés", de cobro a cobro; ADR 011). X = ingreso del mes (confirmado o esperado) − compromisos fijos aún no pagados − gastos cash del mes. Aparte: "Próximo resumen de tarjeta: $C".
 - Movimientos por día con chip de origen (ícono de la app), estado, y swipe para categorizar/ignorar.
 - "Pendientes": lo que la app necesita que confirmes (¿esto es tu sueldo? ¿esta transferencia fue a vos mismo? ¿este ticket es de este pago?).
 - Notificación diaria 20:00 (configurable): "Hoy: $X. Te quedan $Y para Z días".
@@ -95,9 +98,11 @@ Foto (cámara o galería) → compresión on-device (máx 1600 px, JPEG 80) → 
 - Fase 0 — Cimientos: monorepo, api con healthcheck + Prisma + migración inicial + swagger, mobile con expo-router y pantalla placeholder, shared con money utils y schema de Transaction, docker compose, CI, deploy de api a Railway con migraciones automáticas. DoD: `pnpm dev` levanta todo; CI verde; README con setup en 10 minutos.
 - Fase 1 — Loop manual: auth (email + código OTP), seed de Sources y Categories, alta manual de Transaction, MonthPlan + Commitments, dashboard con datos manuales, notificación diaria. DoD: puedo usar la app un mes cargando a mano y el número de arriba es correcto (tests de la fórmula: sueldo aún no cobrado, cuota, crédito vs débito, transferencia propia).
 - Fase 2 — Ingesta Android: módulo nativo, onboarding de permisos, ingest endpoint, ParserEngine + templates para Mercado Pago, Ualá, Brubank, Galicia, Santander y BPN (yo paso muestras), fallback LLM, dedup, pantalla "Pendientes", capture mode. DoD: en mi teléfono, un pago real aparece en < 1 minuto sin abrir la app; 100% de fixtures pasan; cero duplicados en una semana de uso real.
-- Fase 3 — Tickets: cámara, upload, extracción, matching, ítems, categorías desde ítems. DoD: 20 tickets reales con total correcto ≥ 90% y matching correcto cuando existe la notificación.
-- Fase 4 — iOS: build iOS, mail entrante por usuario, plantilla de Atajos + endpoint, carga rápida, share extension. DoD: TestFlight funcionando; un mail de banco reenviado se convierte en Transaction.
-- Fase 5 — Beta: detección de recurrentes (sugerir Commitments), cuotas, export CSV, pulido de UI y onboarding, políticas publicadas, closed testing en Play y TestFlight, analítica de retención (PostHog o similar). DoD: 30 usuarios reales y retención semanal medida.
+- Fase 3 — Correo y vencimientos: dirección de reenvío por usuario + guía del filtro de Gmail/Outlook, ingesta de mails (consumos, resúmenes de tarjeta con PDF, facturas), entidad de vencimientos ("Por pagar") enlazada con Commitments, "Próximo resumen" con el número real del resumen, aviso push antes de cada vencimiento. DoD: un mes de mis correos reales se convierte en movimientos y vencimientos correctos.
+- Fase 4 — Tickets, WhatsApp y carga con IA: foto desde la app o por WhatsApp, extracción con visión, matching con la transacción de la notificación, ítems y categorías; carga por texto y audio (varios movimientos por mensaje), en la app y por WhatsApp. DoD: 20 tickets reales con total correcto ≥ 90% y matching correcto cuando existe la notificación.
+- Fase 5 — Alertas y análisis: push desde el servidor (gasto detectado, ingreso, vencimiento, presupuesto), presupuestos por categoría, estadísticas (promedio diario, categoría top, día que más gastás, vs mes anterior), período "hasta que cobrés" (el mes del usuario va de cobro a cobro; cambia ADR 007), bloqueo con huella. DoD: a definir al planificar la fase.
+- Fase 6 — iOS: build iOS, plantilla de Atajos (SMS/notificaciones) + endpoint, automatización de Apple Pay, carga rápida, share extension; el correo ya funciona desde la Fase 3. DoD: TestFlight funcionando; un pago con Apple Pay y un SMS de banco se convierten en Transaction.
+- Fase 7 — Beta: detección de recurrentes (sugerir Commitments), cuotas, export CSV, pulido de UI y onboarding, políticas publicadas, closed testing en Play y TestFlight, analítica de retención (PostHog o similar). DoD: 30 usuarios reales y retención semanal medida.
 
 ## Convenciones
 - Conventional commits, PRs chicos por feature, ramas feature/<fase>-<tema>.
@@ -164,9 +169,9 @@ Loop manual completo y verificado: login por código de mail, movimientos a mano
 
 Todo lo que no depende de muestras está hecho y verificado localmente: módulo nativo `notification-capture` (Kotlin), token de ingesta por dispositivo (ADR 009), `/ingest/config` y `/ingest/notifications`, RawEvent cifrado, `ParserEngine` en `shared`, fallback con Claude y tope diario (ADR 010), dedup por fingerprint, Pendientes (detectados, transferencias propias, duplicados de lo cargado a mano), onboarding con divulgación y modo captura. ADR 005 cerrado: procesamiento sincrónico, sin Redis ni BullMQ. Checklist manual en `docs/testing/phase-2-manual.md`.
 
-**Whitelist (2026-09-26)**: `packageName` verificado contra Play Store (título y desarrollador) para Mercado Pago (`com.mercadopago.wallet`), Ualá (`ar.com.bancar.uala`), Brubank (`com.brubank`), Santander (`ar.com.santander.rio.mbanking`), BBVA (`com.bbva.nxt_argentina`) y Prex (`air.PrexArgentina`). Solo apps de personas: las de empresas (BBVA Empresas, Galicia Office) quedan afuera. `catalog.data.spec.ts` impide package names mal formados, repetidos o de mensajería.
+**Whitelist (2026-10-14)**: `packageName` verificado contra Play Store (título y desarrollador) y confirmado por Mauricio, una Source por app: Mercado Pago (`com.mercadopago.wallet`), Ualá (`ar.com.bancar.uala`), Brubank (`com.brubank`), Santander (`ar.com.santander.rio.mbanking`), BBVA (`com.bbva.nxt_argentina`), BBVA Empresas (`com.bbva.GEMA.global`), Galicia (`com.mosync.app_Banco_Galicia`), Galicia Empresas (`com.galicia.otp`), BPN (Mi BPN, `com.poincenot.bpn.mobile`), BPN Home Banking (`com.redlink.android_hb3.bpn`), BPN Pagos (`com.bancoNeuquen.mpos`) y Prex (`air.PrexArgentina`). Las apps de empresa entran a propósito (ADR 011). `catalog.data.spec.ts` impide package names mal formados, repetidos o de mensajería.
 
-**Falta (bloqueado por Mauricio)**: package name de Galicia (personas) y BPN, y muestras reales de cada app → un commit `feat(parsers): <source>` por app con fixtures reales. Hasta entonces `TEMPLATE_DEFINITIONS` está vacío y todo lo capturado pasa por Claude (queda PENDING).
+**Falta (bloqueado por Mauricio)**: muestras reales de cada app → un commit `feat(parsers): <source>` por app con fixtures reales. Hasta entonces `TEMPLATE_DEFINITIONS` está vacío y todo lo capturado pasa por Claude (queda PENDING).
 
 **Lo que quedó fijo** (cambiarlo requiere ADR):
 
