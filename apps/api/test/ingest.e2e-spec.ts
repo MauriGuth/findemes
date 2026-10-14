@@ -74,8 +74,10 @@ describe('ingest (e2e)', () => {
     const res = await send(ingest, [
       item('E2E GASTO $1.234,56 EN Kiosco Pepito'),
       item('mensaje privado', { packageName: 'com.whatsapp' }),
+      // SYNTHETIC one-time code from a whitelisted app: a secret, never stored.
+      item('Tu código de verificación es 482913. No lo compartas.'),
     ]);
-    expect(res.body).toEqual({ accepted: 1, duplicates: 0, rejected: 1 });
+    expect(res.body).toEqual({ accepted: 1, duplicates: 0, rejected: 2 });
 
     const events = await ctx.prisma.rawEvent.findMany({ where: { userId: session.userId } });
     expect(events).toHaveLength(1);

@@ -1,5 +1,11 @@
 import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { type IngestConfig, type IngestNotification, type IngestResult } from '@findemes/shared';
+import {
+  type IngestConfig,
+  type IngestNotification,
+  type IngestResult,
+  looksLikeSecurityCode,
+  notificationText,
+} from '@findemes/shared';
 
 import { CLOCK, type Clock } from '../common/clock.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -51,7 +57,7 @@ export class IngestService {
   }
 
   /**
-   * Stores each whitelisted notification encrypted and processes it right away (ADR 005:
+   * Drops one-time codes and PINs (looksLikeSecurityCode) the same way. Stores each whitelisted notification encrypted and processes it right away (ADR 005:
    * synchronous). Anything outside the whitelist is dropped without being stored, even if a
    * modified client sends it. A repeated notification is a no-op, except that a FAILED one
    * is processed again once RETRY_BACKOFF_MS has passed: that is the retry path.
@@ -78,6 +84,11 @@ export class IngestService {
         bigText: item.bigText ?? null,
         subText: item.subText ?? null,
       };
+      // Verification codes and PINs are secrets: never stored, never sent to Claude.
+      if (looksLikeSecurityCode(notificationText(payload))) {
+        result.rejected += 1;
+        continue;
+      }
       const postedAt = new Date(item.postedAt);
       try {
         const row = await this.prisma.rawEvent.create({
