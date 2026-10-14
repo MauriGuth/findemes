@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, Switch, Text, View } from 'react-native';
 
 import { CaptureCard } from '@/components/CaptureCard';
+import { ExportCard } from '@/components/ExportCard';
 import { Phase5Settings } from '@/components/Phase5Settings';
 import { Button, Card, Chip, Muted, Row, Screen, TextField, Title } from '@/components/ui';
 import { errorMessage, useDeleteMe, useMe, useUpdateMe } from '@/lib/hooks';
@@ -180,6 +181,8 @@ export default function SettingsScreen() {
         <Phase5Settings />
 
         <CaptureCard />
+
+        <ExportCard />
 
         {Platform.OS === 'ios' ? (
           <Card>

@@ -47,6 +47,8 @@ interface RequestOptions {
   body?: unknown;
   /** Attach the bearer token (default true). */
   auth?: boolean;
+  /** Return the body as text instead of JSON (CSV export). */
+  text?: boolean;
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -93,7 +95,7 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { body, auth = true } = options;
+  const { body, auth = true, text = false } = options;
 
   const send = async (): Promise<Response> => {
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -129,6 +131,7 @@ export async function apiRequest<T>(
 
   if (!response.ok) throw await parseError(response);
   if (response.status === 204) return undefined as T;
+  if (text) return (await response.text()) as T;
   return (await response.json()) as T;
 }
 

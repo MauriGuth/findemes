@@ -260,3 +260,14 @@ API y pantalla de Atajos listas y verificadas (e2e 92). ADR 016. Checklist en `d
 - `POST /ingest/shortcut` con el token de ingesta: `kind` `message` (texto + remitente; templates de la fuente nombrada o Claude) o `apple_pay` (importe, comercio, tarjeta; débito si la tarjeta dice "débito", si no crédito; siempre PENDING). RawEvent `IOS_SHORTCUT` cifrado, idempotente por dispositivo + contenido + minuto, códigos de seguridad descartados.
 - El token de ingesta de un dispositivo iOS no vence por edad (el atajo no se puede actualizar solo); se revoca al cerrar sesión, borrar la cuenta o generar otro.
 - `Mobile build` acepta `platform: ios`; el primer build iOS se corre a mano para crear certificados.
+
+## Fase 7 — estado (2026-10-14)
+
+Sugerencias de gastos fijos, exportación CSV, páginas legales públicas y medición de retención implementadas y verificadas localmente (e2e 97). ADR 017. Checklist en `docs/testing/phase-7-manual.md`. Falta (Mauricio): revisar y publicar la política (sacar "borrador"), `ADMIN_TOKEN` y `LEGAL_CONTACT_EMAIL` en Railway, cuenta de Play Console y closed testing, y los 30 usuarios (DoD).
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- `detectRecurring` (shared): mismo comercio en 3 de los últimos 4 meses, ±25% del monto y ±6 días; `GET /suggestions/commitments` (no bajo `/commitments`, su `/:id` lo atraparía), descartes en `User.dismissedRecurring`.
+- `GET /exports/transactions.csv?from&to` (hasta 24 períodos): `;`, coma decimal, BOM, celdas que empiezan con `= + - @` llevan `'`. En la app: `expo-file-system` + `expo-sharing`.
+- `/legal/privacy` renderiza `docs/privacy/privacy-policy.md` (copiado en la imagen por el Dockerfile); `/legal/delete-account` borra con el código de login + `DELETE /me` (script aparte por la CSP).
+- Retención propia: `ActivityDay` desde el `JwtAuthGuard` (una vez por usuario y día) y `GET /admin/retention` con `ADMIN_TOKEN`. Sin PostHog.

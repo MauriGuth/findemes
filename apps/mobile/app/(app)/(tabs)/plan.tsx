@@ -12,6 +12,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-
 
 import { KIND_LABEL } from '@/components/CommitmentForm';
 import { MoneyInput } from '@/components/MoneyInput';
+import { SuggestionsCard } from '@/components/SuggestionsCard';
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
 import { BILL_KIND_LABEL, billStatus, dueLabel } from '@/lib/bills';
 import { currentMonthKey, isoToCalendar, monthName, shortDate } from '@/lib/format';
@@ -160,6 +161,8 @@ export default function PlanScreen() {
         </Row>
 
         {!s ? <Muted>{summary.isError ? errorMessage(summary.error) : 'Cargando…'}</Muted> : null}
+
+        <SuggestionsCard />
 
         {s ? (
           <Card>

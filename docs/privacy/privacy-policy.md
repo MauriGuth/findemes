@@ -1,4 +1,4 @@
-# Política de privacidad de Findemes (borrador, Fase 5)
+# Política de privacidad de Findemes (borrador, Fase 7)
 
 _Borrador para revisión. La versión publicada (requisito de Google Play y App Store) sale de este texto en la Fase 5, con la URL pública de solicitud de borrado que pide Google Play._
 
@@ -14,6 +14,8 @@ _Borrador para revisión. La versión publicada (requisito de Google Play y App 
 - Si reenviás **correos** a tu dirección de Findemes: el remitente, el asunto, el texto y los PDF adjuntos de esos correos, para convertirlos en movimientos y en facturas por pagar. Solo nos llega lo que vos elegís reenviar; nunca accedemos a tu casilla.
 - Si sacás o elegís una **foto de un ticket**: la foto y lo que leemos de ella (comercio, CUIT, fecha, total y lo que compraste), para cargar el gasto y su categoría.
 - Si **escribís o dictás** lo que gastaste, o nos escribís por **Telegram o WhatsApp** después de vincular ese chat: el texto o la foto que nos mandás y el identificador de ese chat (tu número de WhatsApp o el id de tu chat de Telegram), para saber que es tu cuenta. Solo leemos lo que vos le mandás a Findemes.
+
+- Qué días usaste la app (solo la fecha, sin lo que hiciste), para saber cuánta gente vuelve semana a semana. No usamos herramientas de analítica de terceros.
 
 No guardamos contraseñas, contactos, ubicación ni mensajes. La captura automática nunca lee notificaciones de apps que no estén en la lista (WhatsApp, mensajes, mails, redes sociales): el teléfono las descarta antes de mirarlas.
 
@@ -38,7 +40,7 @@ Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borr
 
 ## Tus derechos (Ley 25.326)
 
-Podés acceder, corregir y suprimir tus datos. Desde **Ajustes → Eliminar mi cuenta** se borra todo en el momento y no se puede deshacer. Para cualquier otro pedido escribinos a la dirección de contacto de la ficha de la app.
+Podés acceder, corregir y suprimir tus datos. Desde **Ajustes → Eliminar mi cuenta** se borra todo en el momento y no se puede deshacer. Si ya no tenés la app, podés hacerlo desde la página de borrado de cuenta de Findemes con tu mail. Desde **Ajustes → Descargar mis movimientos** te llevás una copia de tus movimientos. Para cualquier otro pedido escribinos a la dirección de contacto de la ficha de la app.
 
 La Agencia de Acceso a la Información Pública, órgano de control de la Ley 25.326, atiende denuncias y reclamos por incumplimiento de las normas de protección de datos personales.
 

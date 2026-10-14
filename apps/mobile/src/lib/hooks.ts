@@ -1,4 +1,6 @@
 import {
+  type CreateCommitmentInput as NewCommitment,
+  type RecurringSuggestionDto,
   type Budget,
   type Stats,
   type UpsertBudgetInput,
@@ -52,6 +54,7 @@ export const keys = {
   chats: ['chats'] as const,
   budgets: (month: MonthKey) => ['budgets', month] as const,
   stats: (month: MonthKey) => ['stats', month] as const,
+  suggestions: ['suggestions'] as const,
 };
 
 /** Everything money-related depends on everything else: invalidate broadly, it is cheap. */
@@ -193,6 +196,44 @@ export function useStats(month: MonthKey = currentMonthKey()) {
   return useQuery({
     queryKey: keys.stats(month),
     queryFn: () => apiGet<Stats>(`/insights/stats?month=${month}`),
+  });
+}
+
+/** Payments that look monthly and are not commitments yet (Phase 7). */
+export function useRecurringSuggestions() {
+  return useQuery({
+    queryKey: keys.suggestions,
+    staleTime: 60 * 60_000,
+    queryFn: async () =>
+      (await apiGet<{ items: RecurringSuggestionDto[] }>('/suggestions/commitments')).items,
+  });
+}
+
+export function useDismissSuggestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => apiPost<void>('/suggestions/commitments/dismiss', { key }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.suggestions }),
+  });
+}
+
+/** Adds the suggested payment as a commitment, then drops the suggestion. */
+export function useAcceptSuggestion() {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateMoney();
+  return useMutation({
+    mutationFn: (s: RecurringSuggestionDto) =>
+      apiPost<Commitment>('/commitments', {
+        name: s.name.slice(0, 80),
+        kind: 'SUBSCRIPTION',
+        amount: s.amount,
+        method: s.method,
+        dayOfMonth: s.dayOfMonth,
+      } satisfies NewCommitment),
+    onSuccess: async () => {
+      await invalidate();
+      await qc.invalidateQueries({ queryKey: keys.suggestions });
+    },
   });
 }
 
