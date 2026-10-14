@@ -1,0 +1,51 @@
+name: Mobile OTA update
+
+# After CI passes on main, publish the JS bundle to the `preview` channel (ADR 012), so the
+# installed preview APK picks up changes without a rebuild. Builds with different native
+# code are skipped by the fingerprint runtime version; those need `Mobile build`.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_URL: https://findemesapi-production.up.railway.app
+      EXPO_PUBLIC_DEV_TOOLS: '1'
+    steps:
+      - name: Skip without EXPO_TOKEN
+        if: env.EXPO_TOKEN == ''
+        run: echo "::notice::EXPO_TOKEN is not set; no update published." && exit 0
+      - uses: actions/checkout@v5
+        if: env.EXPO_TOKEN != ''
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+        if: env.EXPO_TOKEN != ''
+      - uses: actions/setup-node@v5
+        if: env.EXPO_TOKEN != ''
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: env.EXPO_TOKEN != ''
+        run: pnpm install --frozen-lockfile
+      - if: env.EXPO_TOKEN != ''
+        run: pnpm turbo run build --filter=@findemes/shared
+      - name: Publish to the preview channel
+        if: env.EXPO_TOKEN != ''
+        working-directory: apps/mobile
+        run: >-
+          npx --yes eas-cli@latest update --channel preview --platform android
+          --message "$(git log -1 --format=%s)" --non-interactive

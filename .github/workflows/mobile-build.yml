@@ -1,0 +1,37 @@
+name: Mobile build
+
+# Native builds on EAS, started from GitHub so nobody needs a computer (ADR 012). Run it
+# when native code changes (modules/notification-capture, Expo SDK, config plugins); the
+# APK link shows up in the run log and on expo.dev.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [preview, development]
+        default: preview
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Require EXPO_TOKEN
+        if: env.EXPO_TOKEN == ''
+        run: echo "::error::Add the EXPO_TOKEN repository secret first." && exit 1
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start the build on EAS
+        working-directory: apps/mobile
+        run: >-
+          npx --yes eas-cli@latest build --profile ${{ inputs.profile }} --platform android
+          --non-interactive --no-wait

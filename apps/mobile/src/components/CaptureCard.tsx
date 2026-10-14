@@ -4,6 +4,7 @@ import { Alert, Switch, Text, View } from 'react-native';
 
 import { Button, Card, Muted } from '@/components/ui';
 import { Capture, captureErrorText, disableCapture, useCaptureState } from '@/lib/capture';
+import { devToolsEnabled } from '@/lib/devtools';
 import { errorMessage } from '@/lib/hooks';
 
 function ago(iso: string | null): string {
@@ -79,7 +80,7 @@ export function CaptureCard() {
         </View>
       )}
 
-      {__DEV__ ? (
+      {devToolsEnabled ? (
         <View className="gap-2 border-t border-white/10 pt-2">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">

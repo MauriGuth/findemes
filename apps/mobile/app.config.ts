@@ -50,6 +50,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
   ],
+  // OTA updates (ADR 012): JS changes reach installed builds without a rebuild. The
+  // fingerprint policy only delivers an update to builds with the same native code.
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: {
+    url: 'https://u.expo.dev/116b28aa-b3d8-4d21-a3dd-bfa722d8de1f',
+  },
   experiments: {
     typedRoutes: true,
   },

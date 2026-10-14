@@ -12,7 +12,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://findemesapi-production.up.railway.app"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -20,11 +21,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://findemesapi-production.up.railway.app"
-      }
+        "EXPO_PUBLIC_API_URL": "https://findemesapi-production.up.railway.app",
+        "EXPO_PUBLIC_DEV_TOOLS": "1"
+      },
+      "channel": "preview"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {
