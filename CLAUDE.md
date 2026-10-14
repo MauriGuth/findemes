@@ -196,6 +196,7 @@ Todo lo que no depende de muestras está hecho y verificado localmente: módulo 
 - `pkill -f "expo [s]tart"` en la misma línea que otros comandos mata la propia shell (exit 144): correrlo solo.
 - Maven Central devuelve 429 a veces al compilar el Kotlin localmente: reintentar.
 - App del día a día (ADR 012): APK `preview` + actualizaciones OTA (`expo-updates`, runtime por fingerprint). Después de cada CI verde en `main`, el workflow `Mobile OTA update` publica al canal `preview`; los cambios nativos se buildean con el workflow manual `Mobile build`. Ambos necesitan el secret `EXPO_TOKEN`. La actualización se descarga al abrir la app y se aplica en la apertura siguiente.
+- `eas update` en GitHub Actions no encontraba `@babel/plugin-transform-react-jsx` (lo pide por nombre el preset de babel de `react-native-css-interop`, sin declararlo): está declarado directo en el `package.json` de la raíz.
 - Expo publica parches del SDK 57 seguido y `expo-doctor` pone rojo el job mobile del CI aunque el cambio no toque mobile: `npx expo install --fix` en `apps/mobile`. Si después marca una dependencia transitiva vieja (pasó con `@expo/metro-runtime`), se declara directa con `npx expo install <paquete>`.
 - Nunca inventar un fixture de banco: los tests del motor usan una fuente sintética y los e2e templates `E2E …`; `__fixtures__/<source>/` es solo para muestras reales anonimizadas.
 

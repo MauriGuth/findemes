@@ -24,6 +24,7 @@
     "db:reset": "pnpm --filter @findemes/api db:reset"
   },
   "devDependencies": {
+    "@babel/plugin-transform-react-jsx": "7.29.7",
     "@findemes/config": "workspace:*",
     "prettier": "3.9.8",
     "turbo": "2.11.2",
