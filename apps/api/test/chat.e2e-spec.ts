@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { ChatService } from '../src/chat/chat.service.js';
 import { ChatRunner } from '../src/chat/chat.webhooks.js';
 import { TelegramClient } from '../src/chat/telegram.client.js';
 import { WhatsappClient } from '../src/chat/whatsapp.client.js';
@@ -277,5 +278,26 @@ describe('chats (e2e)', () => {
     await api().delete('/me/chats/TELEGRAM').set(session.auth).expect(204);
     await api().delete('/me/chats/SMS').set(session.auth).expect(400);
     expect(await ctx.prisma.chatLink.count({ where: { userId: session.userId } })).toBe(0);
+  });
+
+  it('parallel wrong codes still lock the chat', async () => {
+    const session = await loginAs(ctx);
+    const code = await linkCode(session);
+    const chatId = 7_500_000;
+    const chat = ctx.app.get(ChatService);
+    // Concurrent deliveries, as Telegram sends them over several connections.
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        chat.handle({
+          channel: 'TELEGRAM',
+          externalId: String(chatId),
+          messageId: `burst-${String(i)}`,
+          kind: 'text',
+          text: 'ZZZZZZZZ',
+        }),
+      ),
+    );
+    await runner.drain();
+    expect((await tg(chatId, { text: code })).at(-1)).toMatch(/no sirve/);
   });
 });

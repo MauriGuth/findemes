@@ -1,10 +1,11 @@
-import { periodStart } from '../dates/period.js';
+import { periodEnd, periodStart } from '../dates/period.js';
 import { type CalendarDate, daysBetween, type MonthKey, toArtCalendarDate } from '../dates/tz.js';
 import {
   addMoney,
   compareMoney,
   divideMoney,
   type MoneyAmount,
+  multiplyMoney,
   subtractMoney,
   sumMoney,
 } from '../money/money.js';
@@ -74,9 +75,18 @@ export function computeBudgets(
 /** Thresholds that trigger a budget alert, in order. */
 export const BUDGET_ALERT_LEVELS = [80, 100] as const;
 
-/** The highest threshold reached (0 when none). */
-export function budgetAlertLevel(budget: Pick<Budget, 'ratio'>): number {
-  return [...BUDGET_ALERT_LEVELS].reverse().find((level) => budget.ratio * 100 >= level) ?? 0;
+/**
+ * The highest threshold reached (0 when none), compared in money: the rounded `ratio` is
+ * for display only ($9.950 of $10.000 is not 100% yet).
+ */
+export function budgetAlertLevel(budget: Pick<Budget, 'spent' | 'amount'>): number {
+  return (
+    [...BUDGET_ALERT_LEVELS]
+      .reverse()
+      .find(
+        (level) => compareMoney(budget.spent, multiplyMoney(budget.amount, level / 100)) >= 0,
+      ) ?? 0
+  );
 }
 
 /**
@@ -93,7 +103,9 @@ export function computeStats(input: {
   previous: readonly AnalysisTransaction[];
 }): Stats {
   const start = periodStart(input.month, input.payday);
-  const elapsed = Math.max(1, daysBetween(start, input.today) + 1);
+  // A past period averages over all its days, the current one over the days so far.
+  const length = daysBetween(start, periodEnd(input.month, input.payday));
+  const elapsed = Math.min(length, Math.max(1, daysBetween(start, input.today) + 1));
   const spending = input.current.filter(isSpending);
   const spent = sumMoney(spending.map((t) => t.amount));
 

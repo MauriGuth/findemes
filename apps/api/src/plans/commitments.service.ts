@@ -5,7 +5,6 @@ import {
   type CreateCommitment,
   type CreateInstallmentPurchaseInput,
   installmentsEndsOn,
-  monthKey,
   periodKeyOf,
   type MonthKey,
   toArtCalendarDate,
@@ -145,7 +144,8 @@ export class CommitmentsService {
       currency: 'ARS',
       method: 'CREDIT',
       dayOfMonth: purchaseDay.day,
-      startsOn: monthKey(purchaseDay),
+      // The first installment falls in the period of the purchase ("hasta que cobrés").
+      startsOn: periodKeyOf(purchaseDay, await loadPayday(this.prisma, userId)),
       installmentsTotal: input.installments,
       ...(input.sourceId ? { sourceId: input.sourceId } : {}),
       ...(input.categoryId ? { categoryId: input.categoryId } : {}),

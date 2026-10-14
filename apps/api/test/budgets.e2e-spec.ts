@@ -177,4 +177,19 @@ describe('budgets, stats and push alerts (e2e)', () => {
     await api().put('/devices/current/push-token').set(b.auth).send({ token: null }).expect(204);
     expect(await ctx.prisma.device.count({ where: { pushToken: token(3) } })).toBe(0);
   });
+
+  it('logging out stops the alerts to that phone', async () => {
+    const session = await loginAs(ctx);
+    await api()
+      .put('/devices/current/push-token')
+      .set(session.auth)
+      .send({ token: token(9) })
+      .expect(204);
+    await api()
+      .post('/auth/logout')
+      .set(session.auth)
+      .send({ refreshToken: session.refreshToken })
+      .expect((res) => expect([200, 204]).toContain(res.status));
+    expect(await ctx.prisma.device.count({ where: { pushToken: token(9) } })).toBe(0);
+  });
 });

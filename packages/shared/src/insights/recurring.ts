@@ -49,6 +49,26 @@ function median(values: number[]): number {
     : Math.round(((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2);
 }
 
+/** Days of the month on a circle: the 30th and the 2nd are 3 days apart, not 28. */
+function dayDistance(a: number, b: number): number {
+  const diff = Math.abs(a - b);
+  return Math.min(diff, 30 - diff);
+}
+
+/** The observed day closest to all the others on that circle (rent on the 30th or the 1st). */
+function typicalDay(days: number[]): number {
+  let best = days[0] ?? 1;
+  let bestCost = Infinity;
+  for (const candidate of days) {
+    const cost = days.reduce((sum, d) => sum + dayDistance(candidate, d), 0);
+    if (cost < bestCost) {
+      best = candidate;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
 /**
  * Payments that look like a fixed monthly expense not loaded as a commitment yet (Phase 7):
  * same merchant in at least 3 of the last 4 months, around the same day and amount.
@@ -87,7 +107,7 @@ export function detectRecurring(
   for (const [key, txs] of groups) {
     const sorted = [...txs].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     const days = sorted.map((t) => toArtCalendarDate(new Date(t.occurredAt)).day);
-    const day = median(days);
+    const day = typicalDay(days);
     const amounts = sorted.map((t) => Number(t.amount));
     const typical = String(median(amounts.map((a) => Math.round(a * 100))) / 100);
     const tolerance = multiplyMoney(typical, RECURRING_AMOUNT_TOLERANCE);
@@ -96,7 +116,7 @@ export function detectRecurring(
       const abs = off.startsWith('-') ? off.slice(1) : off;
       return (
         compareMoney(abs, tolerance) <= 0 &&
-        Math.abs((days[i] ?? 0) - day) <= RECURRING_DAY_TOLERANCE
+        dayDistance(days[i] ?? 0, day) <= RECURRING_DAY_TOLERANCE
       );
     });
     const months = new Set(fits.map((t) => monthKey(toArtCalendarDate(new Date(t.occurredAt)))));

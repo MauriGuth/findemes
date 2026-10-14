@@ -113,10 +113,22 @@ export class ReceiptsService {
       include: receiptInclude,
     });
     if (existing) return this.toDto(existing);
-    const row = await this.prisma.receipt.create({
-      data: { userId, imageKey: key, status: 'UPLOADED' },
-      include: receiptInclude,
-    });
+    let row: ReceiptRow;
+    try {
+      row = await this.prisma.receipt.create({
+        data: { userId, imageKey: key, status: 'UPLOADED' },
+        include: receiptInclude,
+      });
+    } catch (error) {
+      // A double tap or network retry: the other request registered it a moment ago.
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+        throw error;
+      }
+      return this.get(
+        userId,
+        (await this.prisma.receipt.findUniqueOrThrow({ where: { imageKey: key } })).id,
+      );
+    }
     this.logger.log(`receipt.uploaded receipt=${row.id}`);
     this.track(this.process(row.id));
     return this.toDto(row);
@@ -157,11 +169,12 @@ export class ReceiptsService {
     this.assertEnabled();
     const row = await this.prisma.receipt.findFirst({ where: { id, userId } });
     if (!row) throw new NotFoundException();
-    if (row.status !== 'FAILED') throw new ConflictException('Este ticket ya se leyó.');
-    await this.prisma.receipt.update({
-      where: { id },
+    // Claimed atomically: two taps on "Probar de nuevo" read it once.
+    const { count } = await this.prisma.receipt.updateMany({
+      where: { id, userId, status: 'FAILED' },
       data: { status: 'UPLOADED', error: null },
     });
+    if (count === 0) throw new ConflictException('Este ticket ya se leyó.');
     this.track(this.process(id));
     return this.get(userId, id);
   }
@@ -188,9 +201,11 @@ export class ReceiptsService {
       this.logger.log(`receipt.failed receipt=${id} reason=${error}`);
     };
 
+    let release: (() => void) | null = null;
     try {
       if (!this.llm) return await fail('llm_error');
-      if (!(await this.usage.available(receipt.userId))) return await fail('llm_cap');
+      release = await this.usage.acquire(receipt.userId);
+      if (!release) return await fail('llm_cap');
       const image = await this.storage.get(receipt.imageKey);
       if (!image) return await fail('image_missing');
 
@@ -301,6 +316,8 @@ export class ReceiptsService {
     } catch (error) {
       await fail('llm_error');
       this.logger.error(`receipt.error receipt=${id} ${error instanceof Error ? error.name : ''}`);
+    } finally {
+      release?.();
     }
   }
 

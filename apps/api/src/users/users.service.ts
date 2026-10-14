@@ -50,8 +50,10 @@ export class UsersService {
       this.prisma.loginCode.deleteMany({ where: { email: user.email } }),
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
-    // Ticket photos live in the bucket, outside the cascade.
+    // Ticket photos live in the bucket, outside the cascade: the registered ones, and anything
+    // else under the user's prefix (uploaded but never registered).
     for (const photo of photos) await this.storage.delete(photo.imageKey);
+    await this.storage.deletePrefix(`receipts/${userId}/`);
     this.logger.log('account.deleted');
   }
 }

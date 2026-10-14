@@ -70,6 +70,35 @@ describe('detectRecurring', () => {
     ).toEqual([]);
   });
 
+  it('a payment around the turn of the month is still monthly', () => {
+    const [s] = detectRecurring(
+      [
+        tx({
+          occurredAt: '2026-07-30T15:00:00Z',
+          merchantNorm: 'ALQUILER',
+          merchantRaw: 'Alquiler',
+        }),
+        tx({
+          occurredAt: '2026-09-01T15:00:00Z',
+          merchantNorm: 'ALQUILER',
+          merchantRaw: 'Alquiler',
+        }),
+        tx({
+          occurredAt: '2026-09-30T15:00:00Z',
+          merchantNorm: 'ALQUILER',
+          merchantRaw: 'Alquiler',
+        }),
+        tx({
+          occurredAt: '2026-10-02T15:00:00Z',
+          merchantNorm: 'ALQUILER',
+          merchantRaw: 'Alquiler',
+        }),
+      ],
+      opts,
+    );
+    expect(s).toMatchObject({ key: 'ALQUILER', months: 3 });
+  });
+
   it('only looks at the last 4 months', () => {
     const old = [
       tx({ occurredAt: '2026-04-05T15:00:00Z' }),

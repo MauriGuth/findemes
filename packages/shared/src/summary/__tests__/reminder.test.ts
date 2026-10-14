@@ -123,6 +123,13 @@ describe('buildReminderSchedule', () => {
     );
     expect(entries[0]?.at.toISOString()).toBe('2026-09-22T00:15:00.000Z');
     expect(entries[0]?.body).toBe('Te pasaste por $50.000. Faltan 10 días para el 1.');
+    const payday = buildReminderSchedule(
+      { ...summary, remaining: '-50000.00', payday: 5 },
+      TODAY,
+      '21:15',
+      new Date('2026-09-21T12:00:00Z'),
+    );
+    expect(payday[0]?.body).toBe('Te pasaste por $50.000. Faltan 10 días para que cobrés.');
   });
 
   it('rejects malformed times', () => {

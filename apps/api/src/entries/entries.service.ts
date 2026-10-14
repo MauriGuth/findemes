@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Inject,
@@ -54,8 +55,20 @@ export class EntriesService {
 
   async parse(userId: string, text: string): Promise<EntryDraft[]> {
     if (!this.llm) throw new ServiceUnavailableException({ message: ENTRIES_UNAVAILABLE });
-    if (!(await this.usage.available(userId))) throw new AssistCapException();
+    const release = await this.usage.acquire(userId);
+    if (!release) throw new AssistCapException();
+    try {
+      return await this.parseWithSlot(userId, text, this.llm);
+    } finally {
+      release();
+    }
+  }
 
+  private async parseWithSlot(
+    userId: string,
+    text: string,
+    llm: LlmProvider,
+  ): Promise<EntryDraft[]> {
     const categories = await this.prisma.category.findMany({
       where: { userId: null },
       select: { id: true, slug: true },
@@ -65,14 +78,14 @@ export class EntriesService {
 
     let result;
     try {
-      result = await this.llm.parseEntry({
+      result = await llm.parseEntry({
         text,
         today: formatIsoDate(todayInArt(now)),
         categorySlugs: categories.map((c) => c.slug),
       });
     } catch (error) {
       await this.usage.record(userId, 'entry', 'error', {
-        model: this.llm.name,
+        model: llm.name,
         inputTokens: 0,
         outputTokens: 0,
       });
@@ -112,11 +125,13 @@ export class EntriesService {
     return drafts;
   }
 
-  /** Saves reviewed drafts as manual movements: expenses confirmed, incomes to classify. */
+  /**
+   * Saves reviewed drafts as manual movements: expenses confirmed, incomes to classify.
+   * Every draft is validated before the first one is written.
+   */
   async save(userId: string, drafts: EntryDraft[]): Promise<Transaction[]> {
-    const saved: Transaction[] = [];
-    for (const draft of drafts) {
-      const input = CreateTransactionSchema.parse({
+    const inputs = drafts.map((draft) => {
+      const parsed = CreateTransactionSchema.safeParse({
         amount: draft.amount,
         currency: draft.currency,
         direction: draft.direction,
@@ -125,8 +140,13 @@ export class EntriesService {
         ...(draft.categoryId ? { categoryId: draft.categoryId } : {}),
         ...(draft.occurredAt ? { occurredAt: draft.occurredAt } : {}),
       });
-      saved.push(await this.transactions.create(userId, input));
-    }
+      if (!parsed.success) {
+        throw new BadRequestException({ message: 'Revisá los movimientos: hay uno que no sirve.' });
+      }
+      return parsed.data;
+    });
+    const saved: Transaction[] = [];
+    for (const input of inputs) saved.push(await this.transactions.create(userId, input));
     return saved;
   }
 }

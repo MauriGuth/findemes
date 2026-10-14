@@ -98,6 +98,39 @@ export class StorageService {
     return { bytes, contentType: response.headers.get('content-type') ?? 'image/jpeg' };
   }
 
+  /**
+   * Every object under a prefix (ListObjectsV2), e.g. all of a user's photos, including ones
+   * uploaded but never registered as a receipt. Best effort, like delete().
+   */
+  async deletePrefix(prefix: string): Promise<void> {
+    if (!this.s3) return;
+    const s3 = this.s3;
+    try {
+      for (let page = 0; page < 50; page += 1) {
+        const url = presignS3Url({
+          method: 'GET',
+          url: `${s3.endpoint}/${s3.bucket}`,
+          region: s3.region,
+          accessKeyId: s3.accessKeyId,
+          secretAccessKey: s3.secretAccessKey,
+          now: this.clock.now(),
+          expiresSeconds: 300,
+          query: { 'list-type': '2', prefix, 'max-keys': '1000' },
+        });
+        const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+        if (!response.ok) throw new Error(`storage_list_${String(response.status)}`);
+        const xml = await response.text();
+        const keys = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) =>
+          (m[1] ?? '').replace(/&amp;/g, '&'),
+        );
+        for (const key of keys) if (key.startsWith(prefix)) await this.delete(key);
+        if (keys.length === 0 || !xml.includes('<IsTruncated>true</IsTruncated>')) return;
+      }
+    } catch {
+      this.logger.warn('storage.delete_prefix_failed');
+    }
+  }
+
   /** Best effort: a leftover object is harmless and the bucket lifecycle can sweep it. */
   async delete(key: string): Promise<void> {
     if (!this.s3) return;

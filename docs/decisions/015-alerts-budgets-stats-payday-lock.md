@@ -27,3 +27,7 @@ ADR 011 scoped Phase 5: server push (detected spending, incomes, due dates, budg
 
 - Push content (amounts, merchants) passes through Expo and Google (FCM). The privacy texts say so.
 - `statement.next` still follows the period, not the card's real closing date (cards from real statements arrive by email since Phase 3).
+
+## Known edge (2026-10-14 review)
+
+A salary credited before payday (payday 5, paid on the 4th) falls in the previous period. The user still links it to the month it belongs to (`salaryMonth` when marking it), as in Phase 1; with payday > 1 it is more likely, so the Pendientes card should be checked in the beta.

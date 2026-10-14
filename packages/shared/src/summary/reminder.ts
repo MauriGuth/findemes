@@ -49,7 +49,10 @@ export function buildReminderSchedule(
         entries.push({
           at,
           title: 'Findemes',
-          body: 'Empezó un mes nuevo. ¿Cuánto esperás cobrar?',
+          body:
+            summary.payday === 1
+              ? 'Empezó un mes nuevo. ¿Cuánto esperás cobrar?'
+              : 'Hoy cobrás: empieza tu mes nuevo. ¿Cuánto esperás cobrar?',
         });
       }
       break;
@@ -57,7 +60,7 @@ export function buildReminderSchedule(
 
     let body: string;
     if (overspent) {
-      body = `Te pasaste por ${money(absMoney(summary.remaining))}. Faltan ${String(daysLeftK)} días para el 1.`;
+      body = `Te pasaste por ${money(absMoney(summary.remaining))}. Faltan ${String(daysLeftK)} días ${summary.payday === 1 ? 'para el 1' : 'para que cobrés'}.`;
     } else {
       const perDay = divideMoney(summary.remaining, daysLeftK);
       const tail = `Te quedan ${money(summary.remaining)} para ${String(daysLeftK)} días (${money(perDay)} por día).`;

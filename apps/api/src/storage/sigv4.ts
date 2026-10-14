@@ -9,6 +9,8 @@ export interface PresignInput {
   secretAccessKey: string;
   now: Date;
   expiresSeconds: number;
+  /** Extra query parameters to sign, e.g. ListObjectsV2's list-type and prefix. */
+  query?: Record<string, string>;
 }
 
 /** RFC 3986 encoding as AWS wants it (`encodeURIComponent` leaves !'()* alone). */
@@ -44,6 +46,7 @@ export function presignS3Url(input: PresignInput): string {
     ['X-Amz-Date', amzDate],
     ['X-Amz-Expires', String(input.expiresSeconds)],
     ['X-Amz-SignedHeaders', 'host'],
+    ...Object.entries(input.query ?? {}),
   ];
   const query = params
     .map(([k, v]) => [encode(k), encode(v)] as const)

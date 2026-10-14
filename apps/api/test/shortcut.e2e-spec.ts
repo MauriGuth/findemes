@@ -127,4 +127,22 @@ describe('iPhone shortcuts (e2e)', () => {
     });
     await api().post('/ingest/shortcut').set(auth).send({ text: 'hola 2' }).expect(401);
   });
+
+  it('a Shortcut retried after a failure is processed, not a duplicate', async () => {
+    const { session, auth } = await setup();
+    llm.respondWith(() => new Error('overloaded'));
+    const body = { text: 'Compraste $900 en Panaderia', sender: '33333' };
+    await api().post('/ingest/shortcut').set(auth).send(body).expect(503);
+    llm.respondWith(() => ({
+      isFinancial: true,
+      amount: '900.00',
+      currency: 'ARS',
+      direction: 'OUT',
+      method: 'DEBIT',
+      merchant: 'Panaderia',
+    }));
+    const retry = await api().post('/ingest/shortcut').set(auth).send(body).expect(200);
+    expect(retry.body.outcome).toBe('movement');
+    expect(await ctx.prisma.transaction.count({ where: { userId: session.userId } })).toBe(1);
+  });
 });

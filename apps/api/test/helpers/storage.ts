@@ -17,6 +17,10 @@ export class FakeStorage {
     return Promise.resolve(this.objects.get(key) ?? null);
   }
 
+  async deletePrefix(prefix: string): Promise<void> {
+    for (const key of [...this.objects.keys()]) if (key.startsWith(prefix)) await this.delete(key);
+  }
+
   delete(key: string): Promise<void> {
     this.objects.delete(key);
     this.deleted.push(key);

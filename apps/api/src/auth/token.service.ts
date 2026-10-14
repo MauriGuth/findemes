@@ -100,8 +100,9 @@ export class TokenService {
   }
 
   /**
-   * Ends a login session. The device's ingest token (ADR 009) goes with it: logout and
-   * reuse detection must also stop the native uploader on that phone.
+   * Ends a login session. The device's ingest token (ADR 009) and push token (ADR 015) go
+   * with it: logout and reuse detection must stop the native uploader on that phone, and
+   * alerts with amounts must stop reaching it.
    */
   async revokeFamily(familyId: string, now: Date): Promise<void> {
     await this.prisma.refreshToken.updateMany({
@@ -115,7 +116,12 @@ export class TokenService {
     if (device?.deviceId) {
       await this.prisma.device.updateMany({
         where: { id: device.deviceId },
-        data: { ingestTokenHash: null, ingestTokenIssuedAt: null, listenerEnabled: false },
+        data: {
+          ingestTokenHash: null,
+          ingestTokenIssuedAt: null,
+          listenerEnabled: false,
+          pushToken: null,
+        },
       });
     }
   }

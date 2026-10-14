@@ -57,7 +57,7 @@ export const EntryDraftSchema = z.object({
   currency: Currency,
   direction: TransactionDirection,
   method: PaymentMethod,
-  merchantRaw: z.string().nullable(),
+  merchantRaw: z.string().trim().max(200, 'El nombre es demasiado largo').nullable(),
   categoryId: UuidSchema.nullable(),
   occurredAt: IsoDateTimeSchema.nullable(),
 });

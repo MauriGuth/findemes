@@ -325,28 +325,49 @@ export class IngestProcessor {
     );
     if (!twin) return false;
     const confirmed = parsed.confidence >= AUTO_CONFIRM_CONFIDENCE;
-    await this.prisma.$transaction([
-      this.prisma.transaction.update({
-        where: { id: twin.id },
-        data: {
-          sourceId,
-          amount,
-          method: parsed.method,
+    // The movement now stands for this notification: the same dedup key as createMovement,
+    // so the notification arriving again (re-posted, second phone) is caught as a duplicate.
+    const fingerprint = createHash('sha256')
+      .update(
+        fingerprintInput({
+          userId: raw.userId,
+          sourceId: sourceId ?? 'email',
+          amount: parsed.amount,
           occurredAt,
-          origin,
-          rawEventId: raw.id,
-          status: confirmed ? 'CONFIRMED' : 'PENDING',
-          confidence: new Prisma.Decimal(parsed.confidence.toFixed(2)),
-          ...(twin.merchantRaw === null
-            ? { merchantRaw: parsed.merchantRaw, merchantNorm: parsed.merchantNorm }
-            : {}),
-        },
-      }),
-      this.prisma.rawEvent.update({
-        where: { id: raw.id },
-        data: { status: 'PROCESSED', error: null, processedAt: this.clock.now() },
-      }),
-    ]);
+          merchantNorm: parsed.merchantNorm,
+        }),
+      )
+      .digest('hex');
+    try {
+      await this.prisma.$transaction([
+        this.prisma.transaction.update({
+          where: { id: twin.id },
+          data: {
+            fingerprint,
+            sourceId,
+            amount,
+            method: parsed.method,
+            occurredAt,
+            origin,
+            rawEventId: raw.id,
+            status: confirmed ? 'CONFIRMED' : 'PENDING',
+            confidence: new Prisma.Decimal(parsed.confidence.toFixed(2)),
+            ...(twin.merchantRaw === null
+              ? { merchantRaw: parsed.merchantRaw, merchantNorm: parsed.merchantNorm }
+              : {}),
+          },
+        }),
+        this.prisma.rawEvent.update({
+          where: { id: raw.id },
+          data: { status: 'PROCESSED', error: null, processedAt: this.clock.now() },
+        }),
+      ]);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      await this.finish(raw.id, 'PROCESSED', 'duplicate');
+      this.logger.log(`ingest.duplicate event=${raw.id}`);
+      return true;
+    }
     this.logger.log(`ingest.merged_receipt event=${raw.id} confirmed=${String(confirmed)}`);
     return true;
   }

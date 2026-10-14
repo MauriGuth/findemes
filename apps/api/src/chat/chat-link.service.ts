@@ -139,13 +139,19 @@ export class ChatLinkService {
       (t) => now.getTime() - t < FAILURE_WINDOW_MS,
     );
     if (recent.length >= MAX_FAILURES) return null;
+    // Counted before the lookup, so a burst of parallel guesses cannot dodge the lockout;
+    // a right code clears it below.
+    this.failures.set(key, [...recent, now.getTime()]);
+    if (this.failures.size > 10_000) {
+      const oldest = this.failures.keys().next().value;
+      if (oldest !== undefined) this.failures.delete(oldest);
+    }
 
     const user = await this.prisma.user.findFirst({
       where: { chatLinkCode: code, chatLinkCodeExpiresAt: { gt: now } },
       select: { id: true },
     });
     if (!user) {
-      this.failures.set(key, [...recent, now.getTime()]);
       this.logger.log(`chat.link_failed channel=${channel}`);
       return null;
     }

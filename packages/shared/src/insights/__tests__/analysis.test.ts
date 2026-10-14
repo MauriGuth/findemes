@@ -34,9 +34,12 @@ describe('computeBudgets', () => {
       ],
     );
     expect(budget).toMatchObject({ spent: '80000.00', remaining: '20000.00', ratio: 0.8 });
-    expect(budgetAlertLevel({ ratio: 0.8 })).toBe(80);
-    expect(budgetAlertLevel({ ratio: 1.2 })).toBe(100);
-    expect(budgetAlertLevel({ ratio: 0.79 })).toBe(0);
+    const level = (spent: string) => budgetAlertLevel({ spent, amount: '10000.00' });
+    expect(level('8000.00')).toBe(80);
+    expect(level('12000.00')).toBe(100);
+    expect(level('7950.00')).toBe(0); // 79.5%: shown as 0.8, not alerted
+    expect(level('9950.00')).toBe(80); // shown as 1, but $50 are left
+    expect(level('10000.00')).toBe(100);
   });
 });
 
@@ -67,6 +70,18 @@ describe('computeStats', () => {
     ]);
     expect(stats.topWeekday).toEqual({ weekday: 6, amount: '60000.00' });
     expect(stats.previous).toEqual({ month: '2026-09', sameDays: '50000.00', change: 1 });
+  });
+
+  it('a past period averages over all its days', () => {
+    const stats = computeStats({
+      month: '2026-08',
+      previousMonth: '2026-07',
+      payday: 1,
+      today: { year: 2026, month: 10, day: 14 },
+      current: [tx({ amount: '31000.00', occurredAt: '2026-08-10T15:00:00Z' })],
+      previous: [],
+    });
+    expect(stats.dailyAverage).toBe('1000.00');
   });
 
   it('handles an empty period', () => {

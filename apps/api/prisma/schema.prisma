@@ -416,7 +416,7 @@ model Receipt {
   id                String         @id @default(uuid(7))
   userId            String
   /// Object key in the S3-compatible bucket. Never a local path.
-  imageKey          String
+  imageKey          String         @unique
   merchant          String?
   cuit              String?
   issuedAt          DateTime?      @db.Timestamptz

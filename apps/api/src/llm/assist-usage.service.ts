@@ -17,6 +17,8 @@ export const ASSIST_CAP_MESSAGE =
 @Injectable()
 export class AssistUsageService {
   private readonly cap: number;
+  /** Calls running right now per user: parallel requests must not all pass the cap. */
+  private readonly inflight = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,8 +28,25 @@ export class AssistUsageService {
     this.cap = config.get('ASSIST_LLM_DAILY_CAP', { infer: true });
   }
 
+  /**
+   * Takes a slot under the daily cap, or null when it is used up. Call the returned
+   * function when the Claude call ended (after record()).
+   */
+  async acquire(userId: string): Promise<(() => void) | null> {
+    // Reserve first, then count: concurrent requests see each other's reservations.
+    this.inflight.set(userId, (this.inflight.get(userId) ?? 0) + 1);
+    const release = () => {
+      const left = (this.inflight.get(userId) ?? 1) - 1;
+      if (left <= 0) this.inflight.delete(userId);
+      else this.inflight.set(userId, left);
+    };
+    if (await this.available(userId, (this.inflight.get(userId) ?? 1) - 1)) return release;
+    release();
+    return null;
+  }
+
   /** Failed calls don't count, as with notifications (ADR 010). */
-  async available(userId: string): Promise<boolean> {
+  async available(userId: string, pending = 0): Promise<boolean> {
     const today = dayRange(todayInArt(this.clock.now()));
     const used = await this.prisma.llmUsage.count({
       where: {
@@ -37,7 +56,7 @@ export class AssistUsageService {
         outcome: { not: 'error' },
       },
     });
-    return used < this.cap;
+    return used + pending < this.cap;
   }
 
   async record(

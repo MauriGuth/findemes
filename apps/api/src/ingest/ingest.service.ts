@@ -130,6 +130,8 @@ export class IngestService {
     const failed = await this.prisma.rawEvent.findMany({
       where: {
         userId: device.userId,
+        // Emails and shortcuts have their own retry paths: this processor only reads notifications.
+        channel: 'ANDROID_NOTIFICATION',
         status: 'FAILED',
         id: { notIn: [...handled] },
         receivedAt: { gt: new Date(now.getTime() - 86_400_000) },

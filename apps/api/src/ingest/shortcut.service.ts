@@ -108,8 +108,11 @@ export class ShortcutService {
       this.logger.log(`shortcut.${outcome} event=${raw.id} kind=${event.kind}`);
       return { outcome };
     } catch (error) {
-      await this.processor.finish(raw.id, 'FAILED', error instanceof Error ? error.name : 'Error');
-      this.logger.error(`shortcut.failed event=${raw.id}`);
+      // Forget it so the Shortcut's retry (same content, same minute) is processed, not a duplicate.
+      await this.prisma.rawEvent.deleteMany({ where: { id: raw.id } });
+      this.logger.error(
+        `shortcut.failed event=${raw.id} ${error instanceof Error ? error.name : ''}`,
+      );
       throw new ServiceUnavailableException({
         message: 'No pudimos leerlo ahora. Probá más tarde.',
       });

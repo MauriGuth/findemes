@@ -332,4 +332,63 @@ describe('receipts and AI entries (e2e)', () => {
     await api().delete('/me').set(session.auth).expect(204);
     expect(storage.deleted).toContain(key);
   });
+
+  it('two simultaneous registrations of one photo are one receipt', async () => {
+    const session = await loginAs(ctx);
+    llm.respondToReceiptWith(() => ticket('300.00'));
+    const key = await upload(session);
+    const [a, b] = await Promise.all([
+      api().post('/receipts').set(session.auth).send({ key }),
+      api().post('/receipts').set(session.auth).send({ key }),
+    ]);
+    expect(a.body.id).toBe(b.body.id);
+    await receipts.drain();
+    expect(await ctx.prisma.receipt.count({ where: { userId: session.userId } })).toBe(1);
+    expect(await ctx.prisma.transaction.count({ where: { userId: session.userId } })).toBe(1);
+  });
+
+  it('the same notification after a merge with a ticket is a duplicate', async () => {
+    const session = await loginAs(ctx);
+    llm.respondToReceiptWith(() => ticket('777.00'));
+    await createReceipt(session, await upload(session));
+    const token = await api().post('/devices/current/ingest-token').set(session.auth).expect(201);
+    const send = (key: string) =>
+      api()
+        .post('/ingest/notifications')
+        .set({ Authorization: `Bearer ${token.body.token as string}` })
+        .send({
+          items: [
+            {
+              key: `0|${source.packageName}|${key}|null|10001`,
+              packageName: source.packageName,
+              postedAt: ctx.clock.now().toISOString(),
+              title: null,
+              text: 'E2E GASTO $777 EN Almacen',
+            },
+          ],
+        })
+        .expect(200);
+    await send('m1');
+    await send('m2'); // re-posted with a new key
+    expect(await ctx.prisma.transaction.count({ where: { userId: session.userId } })).toBe(1);
+  });
+
+  it('an invalid draft saves nothing', async () => {
+    const session = await loginAs(ctx);
+    const ok = {
+      amount: '100.00',
+      currency: 'ARS',
+      direction: 'OUT',
+      method: 'CASH',
+      merchantRaw: 'a',
+      categoryId: null,
+      occurredAt: null,
+    };
+    await api()
+      .post('/entries')
+      .set(session.auth)
+      .send({ drafts: [ok, { ...ok, merchantRaw: 'x'.repeat(300) }] })
+      .expect(400);
+    expect(await ctx.prisma.transaction.count({ where: { userId: session.userId } })).toBe(0);
+  });
 });
