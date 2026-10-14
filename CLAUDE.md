@@ -58,7 +58,7 @@ App personal de plata para Argentina que registra automáticamente todo lo que p
       shared/            zod schemas, tipos, parsers + fixtures, money/date utils
       config/            eslint, tsconfig, prettier compartidos
     docs/
-      decisions/         ADRs
+      decisions/         ADRs (001–014)
       samples/           muestras reales anonimizadas de notificaciones/tickets
       privacy/           política de privacidad y textos de divulgación
 
@@ -220,3 +220,22 @@ Correo y vencimientos implementados y verificados localmente (shared 171 tests, 
 
 - `prisma migrate diff ... > migration.sql` puede capturar el banner de dotenv ("◇ injected env") si se corre con la base caída o antes de que cargue la config: revisar la primera línea del archivo antes de commitear. Si una migración local queda fallida: `prisma migrate resolve --rolled-back <nombre>` y `migrate deploy`.
 - Los e2e de correo usan `INBOUND_*` de `test/setup-env.ts` y el `FakeLlmProvider.respondToEmailWith`; esperar `EmailIngestService.drain()` antes de mirar la base.
+
+## Fase 4 — estado (2026-10-14)
+
+Tickets, carga con IA y chats implementados y verificados localmente (API unit + 82 e2e, lint/typecheck/bundle, expo-doctor). ADR 014. Checklist en `docs/testing/phase-4-manual.md`. Falta que Mauricio cree el bucket R2, el bot de Telegram (y, si quiere, la app de Meta para WhatsApp), cargue las variables y pruebe 20 tickets reales (DoD). Hasta entonces cada función dice "todavía no está disponible".
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- Fotos en un bucket S3-compatible (`S3_*`, todo o nada; R2 recomendado). Firmas SigV4 a mano en `storage/sigv4.ts` (sin `@aws-sdk`), URLs path-style. Claves `receipts/<userId>/<uuid>.jpg`; el teléfono sube con PUT prefirmado (10 min) y la API lee/borra con URLs de 5 min.
+- `POST /receipts {key}` registra y Claude lee en segundo plano (`ReceiptsService.drain()` en tests). Extracción cruda cifrada en `Receipt.extractionEnc`. Match con `pickReceiptMatch` (± $1, ± 48 h); sin match → movimiento PENDING `origin LLM`, fingerprint `receipt:<id>`. Una notificación posterior se fusiona en ese movimiento (`mergeIntoReceipt`).
+- Carga con IA: `POST /entries/parse` (borradores, no guarda) + `POST /entries` (manuales; gastos CONFIRMED, ingresos PENDING). Audio en la app = dictado del teclado.
+- Tope compartido `ASSIST_LLM_DAILY_CAP` (purposes `receipt` y `entry`).
+- Chats: núcleo `ChatService` + adaptadores oficiales Telegram Bot API y WhatsApp Cloud API (cada uno con sus variables, todo o nada). Nunca clientes no oficiales de WhatsApp. Vinculación con código de un uso de 8 caracteres (30 min, `User.chatLinkCode`); 5 códigos errados → chat ignorado 1 h. Solo chats privados. El webhook responde 200 y la respuesta sale después (`ChatRunner.drain()` en tests).
+- `GET /features` dice qué está configurado; la app oculta o explica lo que falta.
+- Mobile: `expo-image-picker` + `expo-image-manipulator` (1600 px, JPEG 80), sin permiso de micrófono. El "+" de Inicio abre `/(app)/add`.
+
+**Trampas conocidas**:
+
+- Los e2e corren con credenciales falsas de Telegram/WhatsApp en `test/setup-env.ts`; el chat e2e reemplaza los clientes y el bucket (`test/helpers/storage.ts`).
+- El parser JSON de `/chat/whatsapp` guarda los bytes crudos (`req.rawBody`) para verificar la firma: no tocar el orden de `useBodyParser` en `configureApp`.

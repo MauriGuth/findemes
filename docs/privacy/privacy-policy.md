@@ -1,4 +1,4 @@
-# Política de privacidad de Findemes (borrador, Fase 3)
+# Política de privacidad de Findemes (borrador, Fase 4)
 
 _Borrador para revisión. La versión publicada (requisito de Google Play y App Store) sale de este texto en la Fase 5, con la URL pública de solicitud de borrado que pide Google Play._
 
@@ -12,6 +12,8 @@ _Borrador para revisión. La versión publicada (requisito de Google Play y App 
 
 - Si activás la **captura automática** (Android): el texto de las notificaciones de los bancos y billeteras de nuestra lista, para convertirlo en movimientos.
 - Si reenviás **correos** a tu dirección de Findemes: el remitente, el asunto, el texto y los PDF adjuntos de esos correos, para convertirlos en movimientos y en facturas por pagar. Solo nos llega lo que vos elegís reenviar; nunca accedemos a tu casilla.
+- Si sacás o elegís una **foto de un ticket**: la foto y lo que leemos de ella (comercio, CUIT, fecha, total y lo que compraste), para cargar el gasto y su categoría.
+- Si **escribís o dictás** lo que gastaste, o nos escribís por **Telegram o WhatsApp** después de vincular ese chat: el texto o la foto que nos mandás y el identificador de ese chat (tu número de WhatsApp o el id de tu chat de Telegram), para saber que es tu cuenta. Solo leemos lo que vos le mandás a Findemes.
 
 No guardamos contraseñas, contactos, ubicación ni mensajes. La captura automática nunca lee notificaciones de apps que no estén en la lista (WhatsApp, mensajes, mails, redes sociales): el teléfono las descarta antes de mirarlas.
 
@@ -24,11 +26,14 @@ Solamente para que la app funcione: calcular el número de la pantalla principal
 - **Resend** (Resend, Inc., Estados Unidos) envía el mail con el código de acceso. Conserva el mensaje hasta 30 días en servidores fuera de Argentina. Solo recibe tu mail y el código.
 - **Railway** (Railway Corp., Estados Unidos) aloja la API y la base de datos.
 - **Anthropic** (Anthropic, PBC, Estados Unidos): cuando no reconocemos el formato de una notificación, le enviamos ese texto a Claude solo para extraer el monto, el comercio y el medio de pago. Los correos que reenviás (texto y PDF adjuntos) también los lee Claude, para sacar el monto, el vencimiento y quién te lo cobra. No le enviamos tu mail ni otros datos de tu cuenta.
+- Las **fotos de tickets** y lo que escribís para cargar gastos también los lee Claude, para sacar montos, comercios y categorías.
+- **Cloudflare** (Cloudflare, Inc., Estados Unidos) guarda las fotos de los tickets en un almacenamiento privado (R2). Solo se pueden ver con un enlace firmado que vence en minutos.
+- **Telegram** (Telegram Messenger Inc.) y **Meta** (WhatsApp, Meta Platforms, Inc.) transportan los mensajes que le mandás a Findemes por esos chats, según sus propias políticas.
 - **Postmark** (ActiveCampaign, LLC, Estados Unidos) recibe los correos que reenviás a tu dirección de Findemes y nos los pasa. Conserva una copia hasta 45 días en sus servidores.
 
 ## Cuánto tiempo
 
-Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borran al día siguiente. Las sesiones vencen a los 180 días como máximo. El texto original de las notificaciones y de los correos reenviados se guarda cifrado y se borra a los 30 días; el movimiento que generó queda hasta que lo borres.
+Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borran al día siguiente. Las sesiones vencen a los 180 días como máximo. El texto original de las notificaciones y de los correos reenviados se guarda cifrado y se borra a los 30 días; el movimiento que generó queda hasta que lo borres. Las fotos de tickets quedan hasta que borres el ticket o tu cuenta.
 
 ## Tus derechos (Ley 25.326)
 
