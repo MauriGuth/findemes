@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
+import { ActivityService } from '../beta/activity.service.js';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { IS_PUBLIC_KEY, JWT_AUDIENCE, JWT_ISSUER } from './auth.constants.js';
@@ -30,6 +31,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly activity: ActivityService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -70,6 +72,7 @@ export class JwtAuthGuard implements CanActivate {
     if (!session) throw new UnauthorizedException();
 
     request.user = { id: payload.sub, familyId: payload.sid };
+    this.activity.touch(payload.sub);
     return true;
   }
 }

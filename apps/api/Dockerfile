@@ -47,6 +47,8 @@ COPY --from=build --chown=node:node /repo/apps/api/package.json /repo/apps/api/p
 COPY --from=build --chown=node:node /repo/apps/api/prisma ./apps/api/prisma
 COPY --from=build --chown=node:node /repo/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /repo/apps/api/node_modules ./apps/api/node_modules
+# Public privacy page (GET /legal/privacy) is rendered from this file (ADR 017).
+COPY --chown=node:node docs/privacy ./docs/privacy
 
 USER node
 WORKDIR /repo/apps/api

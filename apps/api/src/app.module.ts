@@ -10,6 +10,8 @@ import { ChatModule } from './chat/chat.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { validateEnv } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
+import { ActivityModule } from './beta/activity.service.js';
+import { BetaModule } from './beta/beta.module.js';
 import { BillsModule } from './bills/bills.module.js';
 import { BudgetsModule } from './budgets/budgets.module.js';
 import { EntriesModule } from './entries/entries.module.js';
@@ -61,6 +63,8 @@ import { UsersModule } from './users/users.module.js';
     ChatModule,
     PushModule,
     BudgetsModule,
+    ActivityModule,
+    BetaModule,
   ],
   // ThrottlerGuard is a plain provider too so tests can override it (overrideGuard cannot reach APP_GUARD).
   providers: [ThrottlerGuard, { provide: APP_GUARD, useExisting: ThrottlerGuard }],

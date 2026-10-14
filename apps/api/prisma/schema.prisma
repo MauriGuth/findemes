@@ -141,6 +141,8 @@ model User {
   payday                Int       @default(1)
   /// Server push alerts (detected movements, incomes, budgets).
   pushAlerts            Boolean   @default(true)
+  /// Recurring-payment suggestions the user said no to (normalized merchant), Phase 7.
+  dismissedRecurring    String[]  @default([])
   createdAt             DateTime  @default(now()) @db.Timestamptz
   updatedAt             DateTime  @updatedAt @db.Timestamptz
 
@@ -156,6 +158,19 @@ model User {
   bills         Bill[]
   chatLinks     ChatLink[]
   budgets       Budget[]
+  activityDays  ActivityDay[]
+}
+
+/// One row per user and day with any authenticated request: weekly retention without
+/// third-party analytics (Phase 7, ADR 017). No content, no device, no IP.
+model ActivityDay {
+  userId String
+  day    DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
 }
 
 /// A Telegram chat or WhatsApp number that can send tickets and expenses to the account.

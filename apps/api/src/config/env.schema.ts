@@ -136,6 +136,12 @@ export const EnvSchema = z.object({
   PUSH_PROVIDER: PushProviderName.optional(),
   /** Only when "enhanced push security" is on in the Expo project. */
   EXPO_ACCESS_TOKEN: z.string().min(10).optional(),
+
+  // ── beta (Phase 7, ADR 017) ──
+  /** Opens GET /admin/retention (header x-admin-token). Without it, the route is 404. */
+  ADMIN_TOKEN: Secret.optional(),
+  /** Shown on the public privacy and account-deletion pages. */
+  LEGAL_CONTACT_EMAIL: z.email().optional(),
 });
 
 type ParsedEnv = z.output<typeof EnvSchema>;

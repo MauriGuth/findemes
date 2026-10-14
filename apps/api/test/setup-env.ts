@@ -23,5 +23,7 @@ process.env['WHATSAPP_PHONE_NUMBER_ID'] ??= '100200300';
 process.env['WHATSAPP_APP_SECRET'] ??= 'test-only-whatsapp-app-secret';
 process.env['WHATSAPP_VERIFY_TOKEN'] ??= 'test-only-verify-token';
 process.env['WHATSAPP_DISPLAY_NUMBER'] ??= '5492990000000';
+process.env['ADMIN_TOKEN'] ??= 'test-only-admin-token-0000000000000000';
+process.env['LEGAL_CONTACT_EMAIL'] ??= 'privacidad@findemes.test';
 
 config();
