@@ -182,7 +182,7 @@ export class IngestProcessor {
     }));
   }
 
-  private async finish(
+  async finish(
     id: string,
     status: 'PROCESSED' | 'UNRECOGNIZED' | 'FAILED',
     error: string | null,
@@ -200,11 +200,14 @@ export class IngestProcessor {
    */
   async createMovement(
     raw: { id: string; userId: string; postedAt: Date },
-    sourceId: string,
+    /** null for emails: the sender is not a catalog source. */
+    sourceId: string | null,
     parsed: ParsedNotification,
     origin: Extract<TransactionOrigin, 'TEMPLATE' | 'LLM'>,
+    options: { occurredAt?: Date; manualWindowMs?: number } = {},
   ): Promise<void> {
-    const occurredAt = raw.postedAt;
+    const occurredAt = options.occurredAt ?? raw.postedAt;
+    const manualWindowMs = options.manualWindowMs ?? MANUAL_DUPLICATE_WINDOW_MS;
     const manualTwin = await this.prisma.transaction.findFirst({
       where: {
         userId: raw.userId,
@@ -214,8 +217,8 @@ export class IngestProcessor {
         currency: parsed.currency,
         direction: parsed.direction,
         occurredAt: {
-          gte: new Date(occurredAt.getTime() - MANUAL_DUPLICATE_WINDOW_MS),
-          lte: new Date(occurredAt.getTime() + MANUAL_DUPLICATE_WINDOW_MS),
+          gte: new Date(occurredAt.getTime() - manualWindowMs),
+          lte: new Date(occurredAt.getTime() + manualWindowMs),
         },
       },
       select: { id: true },
@@ -227,7 +230,7 @@ export class IngestProcessor {
       .update(
         fingerprintInput({
           userId: raw.userId,
-          sourceId,
+          sourceId: sourceId ?? 'email',
           amount: parsed.amount,
           occurredAt,
           merchantNorm: parsed.merchantNorm,
@@ -257,7 +260,7 @@ export class IngestProcessor {
         }),
         this.prisma.rawEvent.update({
           where: { id: raw.id },
-          data: { status: 'PROCESSED', error: null, processedAt: new Date() },
+          data: { status: 'PROCESSED', error: null, processedAt: this.clock.now() },
         }),
       ]);
       this.logger.log(

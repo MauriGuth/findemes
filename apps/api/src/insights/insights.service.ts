@@ -1,19 +1,25 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  addDays,
+  BILL_OVERDUE_DAYS,
   type CalendarDate,
   computeMonthSummary,
+  formatIsoDate,
   monthKey,
   type MonthKey,
   monthRange,
   type MonthSummary,
+  parseMonthKey,
   previousMonthKey,
+  startOfNextMonth,
+  type SummaryBillInput,
   type SummaryCommitmentInput,
   type SummaryTransactionInput,
   todayInArt,
 } from '@findemes/shared';
 
 import { CLOCK, type Clock } from '../common/clock.js';
-import { dateToIso, dateToMonthKey, monthKeyToDate, toMoney } from '../common/dto.js';
+import { dateToIso, dateToMonthKey, isoToDate, monthKeyToDate, toMoney } from '../common/dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 interface PlanInput {
@@ -34,12 +40,13 @@ export class InsightsService {
     const month = requested ?? monthKey(today);
     const previous = previousMonthKey(month);
 
-    const [commitments, planM, planPrev, txM, txPrev] = await Promise.all([
+    const [commitments, planM, planPrev, txM, txPrev, bills] = await Promise.all([
       this.loadCommitments(userId),
       this.loadPlan(userId, month),
       this.loadPlan(userId, previous),
       this.loadTransactions(userId, month),
       this.loadTransactions(userId, previous),
+      this.loadBills(userId, month),
     ]);
 
     const previousSummary = computeMonthSummary({
@@ -62,7 +69,39 @@ export class InsightsService {
       previousStatement: previousSummary.statement.next,
       commitments,
       transactions: txM,
+      bills,
     });
+  }
+
+  /**
+   * Bills due in the month or overdue up to BILL_OVERDUE_DAYS. A PAID bill whose payment
+   * was deleted or ignored is owed again, so it goes in as UNPAID.
+   */
+  private async loadBills(userId: string, month: MonthKey): Promise<SummaryBillInput[]> {
+    const first = parseMonthKey(month);
+    const rows = await this.prisma.bill.findMany({
+      where: {
+        userId,
+        dueOn: {
+          gte: isoToDate(formatIsoDate(addDays(first, -BILL_OVERDUE_DAYS))),
+          lt: isoToDate(formatIsoDate(startOfNextMonth(first))),
+        },
+      },
+      include: { paidTransaction: { select: { status: true } } },
+    });
+    return rows.map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      issuer: b.issuer,
+      amount: toMoney(b.amount),
+      currency: b.currency,
+      dueOn: dateToIso(b.dueOn),
+      status:
+        b.status === 'PAID' && (!b.paidTransaction || b.paidTransaction.status === 'IGNORED')
+          ? 'UNPAID'
+          : b.status,
+      commitmentId: b.commitmentId,
+    }));
   }
 
   private async loadCommitments(userId: string): Promise<SummaryCommitmentInput[]> {
@@ -113,7 +152,10 @@ export class InsightsService {
           { commitmentId: { not: null }, commitmentMonth: monthKeyToDate(month) },
         ],
       },
-      include: { salaryOfPlan: { select: { id: true } } },
+      include: {
+        salaryOfPlan: { select: { id: true } },
+        rawEvent: { select: { channel: true } },
+      },
     });
     return rows.map((t) => ({
       id: t.id,
@@ -130,6 +172,7 @@ export class InsightsService {
       isSalary: t.salaryOfPlan !== null,
       origin: t.origin,
       sourceId: t.sourceId,
+      capturedVia: t.rawEvent?.channel ?? null,
     }));
   }
 }

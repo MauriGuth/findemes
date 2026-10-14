@@ -19,6 +19,7 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.provider.js';
               config.get('ANTHROPIC_API_KEY', { infer: true }) ?? '',
               config.get('LLM_MODEL', { infer: true }),
               config.get('LLM_TIMEOUT_MS', { infer: true }),
+              config.get('EMAIL_LLM_TIMEOUT_MS', { infer: true }),
             );
           case 'fake':
             return new FakeLlmProvider();

@@ -76,6 +76,20 @@ export const EnvSchema = z.object({
   /** Claude calls per user per day (Argentina); beyond it, unmatched notifications wait. */
   LLM_DAILY_CAP: z.coerce.number().int().min(0).default(30),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
+
+  // ── inbound email (Phase 3, ADR 013) ──
+  /**
+   * The provider's inbound address ("abc123@inbound.postmarkapp.com"); each user gets
+   * `abc123+<token>@...`. Optional: without it the email feature answers "not available".
+   */
+  INBOUND_EMAIL_ADDRESS: z.email().optional(),
+  /** Basic-auth credentials the provider sends with every webhook. */
+  INBOUND_WEBHOOK_USER: z.string().min(4).optional(),
+  INBOUND_WEBHOOK_PASSWORD: Secret.optional(),
+  /** Claude calls for emails per user per day (Argentina), apart from notifications. */
+  EMAIL_LLM_DAILY_CAP: z.coerce.number().int().min(0).default(40),
+  /** Email reading is slower (PDFs): its own timeout. */
+  EMAIL_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(90_000),
 });
 
 type ParsedEnv = z.output<typeof EnvSchema>;
@@ -121,6 +135,14 @@ export function validateEnv(config: Record<string, unknown>): Env {
   }
   if (env.NODE_ENV !== 'test' && env.RAW_EVENT_KEY === TEST_RAW_EVENT_KEY) {
     problems.push('the test-only RAW_EVENT_KEY is only accepted when NODE_ENV=test');
+  }
+  if (env.INBOUND_EMAIL_ADDRESS && (!env.INBOUND_WEBHOOK_USER || !env.INBOUND_WEBHOOK_PASSWORD)) {
+    problems.push(
+      'INBOUND_WEBHOOK_USER and INBOUND_WEBHOOK_PASSWORD are required with INBOUND_EMAIL_ADDRESS',
+    );
+  }
+  if (env.INBOUND_EMAIL_ADDRESS?.split('@')[0]?.includes('+')) {
+    problems.push('INBOUND_EMAIL_ADDRESS must be the base address, without "+"');
   }
   if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) {
     problems.push('ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic');

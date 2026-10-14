@@ -9,6 +9,8 @@ import { ClockModule } from './common/clock.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { validateEnv } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
+import { BillsModule } from './bills/bills.module.js';
+import { InboundModule } from './inbound/inbound.module.js';
 import { IngestModule } from './ingest/ingest.module.js';
 import { LlmModule } from './llm/llm.module.js';
 import { InsightsModule } from './insights/insights.module.js';
@@ -45,6 +47,8 @@ import { UsersModule } from './users/users.module.js';
     InsightsModule,
     LlmModule,
     IngestModule,
+    InboundModule,
+    BillsModule,
   ],
   // ThrottlerGuard is a plain provider too so tests can override it (overrideGuard cannot reach APP_GUARD).
   providers: [ThrottlerGuard, { provide: APP_GUARD, useExisting: ThrottlerGuard }],

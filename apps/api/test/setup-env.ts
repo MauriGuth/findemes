@@ -11,5 +11,8 @@ process.env['SWAGGER_ENABLED'] ??= 'false';
 // base64 of 'test-only-raw-event-key-00000000' (TEST_RAW_EVENT_KEY in env.schema.ts).
 process.env['RAW_EVENT_KEY'] ??= 'dGVzdC1vbmx5LXJhdy1ldmVudC1rZXktMDAwMDAwMDA=';
 process.env['LLM_PROVIDER'] ??= 'fake';
+process.env['INBOUND_EMAIL_ADDRESS'] ??= 'e2e-inbound@inbound.findemes.test';
+process.env['INBOUND_WEBHOOK_USER'] ??= 'postmark';
+process.env['INBOUND_WEBHOOK_PASSWORD'] ??= 'test-only-inbound-password-000000000000';
 
 config();

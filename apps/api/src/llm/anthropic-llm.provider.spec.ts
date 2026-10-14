@@ -59,6 +59,7 @@ describe('AnthropicLlmProvider', () => {
       'sk-ant-test',
       'claude-opus-5',
       5000,
+      5000,
       fakeFetch(message(JSON.stringify(answer)), captured),
     );
     const result = await provider.extractNotification(input);
@@ -86,6 +87,7 @@ describe('AnthropicLlmProvider', () => {
       'sk-ant-test',
       'claude-sonnet-5',
       5000,
+      5000,
       fakeFetch(message(JSON.stringify(answer)), captured),
     );
     await provider.extractNotification(input);
@@ -97,6 +99,7 @@ describe('AnthropicLlmProvider', () => {
       'k',
       'claude-opus-5',
       5000,
+      5000,
       fakeFetch(message('', 'refusal'), []),
     );
     await expect(refusal.extractNotification(input)).rejects.toBeInstanceOf(LlmOutputError);
@@ -104,8 +107,48 @@ describe('AnthropicLlmProvider', () => {
       'k',
       'claude-opus-5',
       5000,
+      5000,
       fakeFetch(message('{"isFinancial": "maybe"}'), []),
     );
     await expect(garbage.extractNotification(input)).rejects.toBeInstanceOf(LlmOutputError);
+  });
+
+  it('reads an email with its PDFs as documents, medium effort and its own timeout', async () => {
+    const captured: Captured[] = [];
+    const reply = {
+      kind: 'card_statement',
+      movement: null,
+      statement: {
+        issuer: 'Visa Banco de prueba',
+        total: '150000.00',
+        minimum: '15000.00',
+        currency: 'ARS',
+        dueOn: '2026-11-10',
+      },
+      bill: null,
+    };
+    const provider = new AnthropicLlmProvider(
+      'k',
+      'claude-opus-5',
+      5000,
+      60000,
+      fakeFetch(message(JSON.stringify(reply)), captured),
+    );
+    // SYNTHETIC email; the PDF bytes are a placeholder.
+    const result = await provider.extractEmail({
+      from: 'Banco de prueba <avisos@banco.test>',
+      subject: 'Tu resumen',
+      text: 'Adjuntamos tu resumen.',
+      pdfs: [{ name: 'resumen.pdf', base64: 'JVBERi0xLjQK' }],
+      receivedOn: '2026-10-28',
+    });
+    expect(result.value).toEqual(reply);
+    const body = captured[0]?.body as {
+      output_config: { effort: string };
+      messages: { content: { type: string; source?: { media_type: string } }[] }[];
+    };
+    expect(body.output_config.effort).toBe('medium');
+    expect(body.messages[0]?.content.map((block) => block.type)).toEqual(['document', 'text']);
+    expect(body.messages[0]?.content[0]?.source?.media_type).toBe('application/pdf');
   });
 });

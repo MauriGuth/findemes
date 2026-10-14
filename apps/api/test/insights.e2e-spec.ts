@@ -151,6 +151,7 @@ describe('insights (e2e)', () => {
       amount: '129000.00',
       paid: false,
       paidAmount: '0.00',
+      source: 'estimate',
     });
     expect(oct.body.remaining).toBe('1371000.00');
     expect(oct.body.pending.needsStatementPayment).toBe(true);

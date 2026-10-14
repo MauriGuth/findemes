@@ -11,6 +11,6 @@ import { RawEventCrypto } from './raw-event-crypto.js';
 @Module({
   controllers: [DevicesController, IngestController],
   providers: [RawEventCrypto, IngestTokenService, IngestAuthGuard, IngestService, IngestProcessor],
-  exports: [IngestTokenService, IngestProcessor],
+  exports: [IngestTokenService, IngestProcessor, RawEventCrypto],
 })
 export class IngestModule {}

@@ -31,3 +31,8 @@ export function dateToMonthKey(value: Date): MonthKey {
 export function monthKeyToDate(key: MonthKey): Date {
   return isoToDateColumn(`${key}-01`);
 }
+
+/** "YYYY-MM-DD" → DATE column. */
+export function isoToDate(iso: IsoDate): Date {
+  return isoToDateColumn(iso);
+}

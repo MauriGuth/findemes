@@ -1,8 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { Currency, PaymentMethod, TransactionDirection } from '@findemes/shared';
+import { type BetaContentBlockParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
+import { BillKind, Currency, PaymentMethod, TransactionDirection } from '@findemes/shared';
 import { z } from 'zod';
 
+import { EMAIL_OUTPUT_SCHEMA, EMAIL_SYSTEM_PROMPT } from './email-prompt.js';
 import {
+  type EmailExtraction,
+  type EmailExtractionInput,
   type LlmProvider,
   type LlmResult,
   type NotificationExtraction,
@@ -17,6 +21,39 @@ const ExtractionSchema = z.object({
   direction: TransactionDirection.nullable(),
   method: PaymentMethod.nullable(),
   merchant: z.string().nullable(),
+});
+
+const EmailSchema = z.object({
+  kind: z.enum(['movement', 'card_statement', 'bill', 'not_financial']),
+  movement: z
+    .object({
+      amount: z.string(),
+      currency: Currency,
+      direction: TransactionDirection,
+      method: PaymentMethod,
+      merchant: z.string().nullable(),
+      occurredAt: z.string().nullable(),
+    })
+    .nullable(),
+  statement: z
+    .object({
+      issuer: z.string(),
+      total: z.string(),
+      minimum: z.string().nullable(),
+      currency: Currency,
+      dueOn: z.string(),
+    })
+    .nullable(),
+  bill: z
+    .object({
+      issuer: z.string(),
+      kind: BillKind.exclude(['CARD_STATEMENT']),
+      amount: z.string(),
+      currency: Currency,
+      dueOn: z.string(),
+      periodMonth: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 /** The model declined or answered something that does not fit the schema. */
@@ -37,6 +74,8 @@ export class AnthropicLlmProvider implements LlmProvider {
     apiKey: string,
     private readonly model: string,
     timeoutMs: number,
+    /** Emails carry PDFs and take longer than notifications. */
+    private readonly emailTimeoutMs: number = timeoutMs,
     /** Tests only: intercept HTTP. */
     fetchImpl?: typeof fetch,
   ) {
@@ -56,24 +95,58 @@ export class AnthropicLlmProvider implements LlmProvider {
   async extractNotification(
     input: NotificationExtractionInput,
   ): Promise<LlmResult<NotificationExtraction>> {
-    const response = await this.client.beta.messages.create({
-      model: this.model,
-      max_tokens: 2048,
-      system: NOTIFICATION_SYSTEM_PROMPT,
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: NOTIFICATION_OUTPUT_SCHEMA },
-      },
-      ...(this.supportsFallbacks
-        ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
-        : {}),
-      messages: [
+    return this.structured(
+      NOTIFICATION_SYSTEM_PROMPT,
+      NOTIFICATION_OUTPUT_SCHEMA,
+      'low',
+      `Bank or wallet: ${input.sourceName}\n<notification>\n${input.text}\n</notification>`,
+      ExtractionSchema,
+    );
+  }
+
+  async extractEmail(input: EmailExtractionInput): Promise<LlmResult<EmailExtraction>> {
+    const documents: BetaContentBlockParam[] = input.pdfs.map((pdf) => ({
+      type: 'document',
+      title: pdf.name,
+      source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 },
+    }));
+    return this.structured(
+      EMAIL_SYSTEM_PROMPT,
+      EMAIL_OUTPUT_SCHEMA,
+      'medium',
+      [
+        ...documents,
         {
-          role: 'user',
-          content: `Bank or wallet: ${input.sourceName}\n<notification>\n${input.text}\n</notification>`,
+          type: 'text',
+          text: `Received: ${input.receivedOn}\nFrom: ${input.from}\nSubject: ${input.subject}\n<email>\n${input.text}\n</email>`,
         },
       ],
-    });
+      EmailSchema,
+      this.emailTimeoutMs,
+    );
+  }
+
+  private async structured<T>(
+    system: string,
+    schema: Record<string, unknown>,
+    effort: 'low' | 'medium',
+    content: string | BetaContentBlockParam[],
+    parser: z.ZodType<T>,
+    timeoutMs?: number,
+  ): Promise<LlmResult<T>> {
+    const response = await this.client.beta.messages.create(
+      {
+        model: this.model,
+        max_tokens: 2048,
+        system,
+        output_config: { effort, format: { type: 'json_schema', schema } },
+        ...(this.supportsFallbacks
+          ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
+          : {}),
+        messages: [{ role: 'user', content }],
+      },
+      timeoutMs ? { timeout: timeoutMs } : undefined,
+    );
 
     const usage = {
       model: response.model,
@@ -84,9 +157,9 @@ export class AnthropicLlmProvider implements LlmProvider {
     const text = response.content
       .map((block) => (block.type === 'text' ? block.text : ''))
       .join('');
-    let value: NotificationExtraction;
+    let value: T;
     try {
-      value = ExtractionSchema.parse(JSON.parse(text));
+      value = parser.parse(JSON.parse(text));
     } catch {
       throw new LlmOutputError('invalid_output');
     }

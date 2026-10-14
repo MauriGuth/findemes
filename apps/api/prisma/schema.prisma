@@ -93,6 +93,30 @@ enum ReceiptStatus {
   FAILED
 }
 
+/// What a bill is for (ADR 013). CARD_STATEMENT replaces the estimated statement.
+enum BillKind {
+  CARD_STATEMENT
+  UTILITY
+  EDUCATION
+  HEALTH
+  TAX
+  SUBSCRIPTION
+  OTHER
+}
+
+/// PENDING = detected, waiting for the user. PENDING and UNPAID both count as owed.
+enum BillStatus {
+  PENDING
+  UNPAID
+  PAID
+  IGNORED
+}
+
+enum BillOrigin {
+  EMAIL
+  MANUAL
+}
+
 // ─── Identity ────────────────────────────────────────────────────────────────
 
 model User {
@@ -102,6 +126,8 @@ model User {
   timeZone          String   @default("America/Argentina/Buenos_Aires")
   /// HH:MM in Argentina time; null = daily reminder off.
   dailyReminderTime String?  @default("20:00")
+  /// Random part of the forwarding address (`local+token@domain`, ADR 013); rotated on demand.
+  inboundToken      String?  @unique
   createdAt         DateTime @default(now()) @db.Timestamptz
   updatedAt         DateTime @updatedAt @db.Timestamptz
 
@@ -114,6 +140,7 @@ model User {
   monthPlans    MonthPlan[]
   commitments   Commitment[]
   llmUsage      LlmUsage[]
+  bills         Bill[]
 }
 
 model Device {
@@ -281,8 +308,10 @@ model RawEvent {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   device      Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   transaction Transaction?
+  bills       Bill[]
 
   @@unique([deviceId, externalKey, postedAt])
+  @@index([userId, channel, externalKey])
   @@index([userId, status])
   @@index([expiresAt])
 }
@@ -329,6 +358,7 @@ model Transaction {
   receipt      Receipt?    @relation(fields: [receiptId], references: [id], onDelete: SetNull)
   commitment   Commitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
   salaryOfPlan MonthPlan?  @relation("MonthPlanSalary")
+  paidBill     Bill?
 
   @@unique([userId, fingerprint])
   @@index([userId, occurredAt(sort: Desc)])
@@ -427,8 +457,45 @@ model Commitment {
   source   Source?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   payments Transaction[]
+  bills    Bill[]
 
   @@index([userId, active])
+}
+
+/// Something to pay by a date: a card statement or a bill, usually read from a
+/// forwarded email (ADR 013). Counts against "Te quedan" until paid or ignored.
+model Bill {
+  id                String     @id @default(uuid(7))
+  userId            String
+  kind              BillKind
+  /// As written ("Visa Galicia", "EPEN").
+  issuer            String
+  /// normalizeMerchant(issuer), for the fingerprint.
+  issuerNorm        String
+  amount            Decimal    @db.Decimal(18, 2)
+  minimumAmount     Decimal?   @db.Decimal(18, 2)
+  currency          Currency   @default(ARS)
+  dueOn             DateTime   @db.Date
+  /// First day of the month the bill is for, when the email says it.
+  periodMonth       DateTime?  @db.Date
+  status            BillStatus @default(PENDING)
+  origin            BillOrigin
+  /// sha256(userId|kind|issuerNorm|amount|dueOn): the same bill twice is one bill.
+  fingerprint       String
+  /// The commitment whose price this bill sets for its month.
+  commitmentId      String?
+  paidTransactionId String?    @unique
+  rawEventId        String?
+  createdAt         DateTime   @default(now()) @db.Timestamptz
+  updatedAt         DateTime   @updatedAt @db.Timestamptz
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commitment      Commitment?  @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  paidTransaction Transaction? @relation(fields: [paidTransactionId], references: [id], onDelete: SetNull)
+  rawEvent        RawEvent?    @relation(fields: [rawEventId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, fingerprint])
+  @@index([userId, dueOn])
 }
 
 /// One row per Claude call: cost per request and the per-user daily cap (ADR 010).

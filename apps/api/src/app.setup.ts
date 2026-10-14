@@ -39,6 +39,17 @@ export function configureApp(app: NestExpressApplication): void {
   app.set('trust proxy', 1);
   app.use(helmet());
 
+  // Inbound email webhooks carry PDF attachments (ADR 013): a large JSON limit only there.
+  // Registering json parsers here replaces Nest's default one, so the 100 kB parser for
+  // every other route is declared explicitly right after.
+  app.useBodyParser('json', {
+    limit: '40mb',
+    type: (req: { url?: string; headers: { 'content-type'?: string } }) =>
+      (req.url ?? '').startsWith('/inbound/') &&
+      (req.headers['content-type'] ?? '').includes('json'),
+  });
+  app.useBodyParser('json', { limit: '100kb' });
+
   // zod (Standard Schema) validation: `@Body({ schema })`, `@Query({ schema })`, ...
   app.useGlobalPipes(
     new StandardSchemaValidationPipe({
