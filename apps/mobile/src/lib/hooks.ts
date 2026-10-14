@@ -34,7 +34,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from './api';
-import { currentMonthKey } from './format';
+import { periodKeyOf, todayInArt } from '@findemes/shared';
+import { useMemo } from 'react';
 import { useSession } from './session';
 
 export const keys = {
@@ -57,6 +58,12 @@ export const keys = {
   suggestions: ['suggestions'] as const,
 };
 
+/** The user's current month (payday to payday); re-renders when the payday changes. */
+export function useCurrentMonthKey(): MonthKey {
+  const payday = useSession((s) => s.payday);
+  return useMemo(() => periodKeyOf(todayInArt(), payday), [payday]);
+}
+
 /** Everything money-related depends on everything else: invalidate broadly, it is cheap. */
 export function useInvalidateMoney() {
   const qc = useQueryClient();
@@ -74,14 +81,18 @@ export function useInvalidateMoney() {
     ]);
 }
 
-export function useSummary(month: MonthKey = currentMonthKey()) {
+export function useSummary(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.summary(month),
     queryFn: () => apiGet<MonthSummary>(`/insights/summary?month=${month}`),
   });
 }
 
-export function useTransactions(month: MonthKey = currentMonthKey()) {
+export function useTransactions(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.transactions(month),
     queryFn: async () =>
@@ -97,7 +108,9 @@ export function useTransaction(id: string) {
   });
 }
 
-export function usePlan(month: MonthKey = currentMonthKey()) {
+export function usePlan(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.plan(month),
     queryFn: async () => {
@@ -144,7 +157,9 @@ export function useCatalog() {
 }
 
 /** "Por pagar": bills due in the month plus unpaid ones overdue (ADR 013). */
-export function useBills(month: MonthKey = currentMonthKey()) {
+export function useBills(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.bills(month),
     queryFn: async () => (await apiGet<{ items: Bill[] }>(`/bills?month=${month}`)).items,
@@ -180,7 +195,9 @@ export function useRotateInbound() {
 }
 
 /** Budgets with what was spent this period (Phase 5). */
-export function useBudgets(month: MonthKey = currentMonthKey()) {
+export function useBudgets(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.budgets(month),
     queryFn: async () => (await apiGet<{ items: Budget[] }>(`/budgets?month=${month}`)).items,
@@ -192,7 +209,9 @@ export const useUpsertBudget = () =>
 export const useDeleteBudget = () =>
   useMoneyMutation((id: string) => apiDelete<void>(`/budgets/${id}`));
 
-export function useStats(month: MonthKey = currentMonthKey()) {
+export function useStats(requested?: MonthKey) {
+  const current = useCurrentMonthKey();
+  const month = requested ?? current;
   return useQuery({
     queryKey: keys.stats(month),
     queryFn: () => apiGet<Stats>(`/insights/stats?month=${month}`),

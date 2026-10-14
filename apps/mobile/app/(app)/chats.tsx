@@ -100,7 +100,7 @@ export default function ChatsScreen() {
                   disabled={!whatsappUrl}
                 />
                 <Button
-                  label="Copiar el mensaje"
+                  label="Compartir el mensaje"
                   variant="ghost"
                   onPress={() => void Share.share({ message: data.whatsapp.message ?? '' })}
                 />

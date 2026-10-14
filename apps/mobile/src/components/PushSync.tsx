@@ -16,13 +16,15 @@ export function PushSync() {
     if (alerts) void registerForPush();
   }, [alerts]);
 
+  // Also the tap that opened the app from closed: the hook keeps the last response.
+  const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const url = response.notification.request.content.data?.['url'];
-      if (typeof url === 'string' && url.startsWith('/(app)')) router.push(url as Href);
-    });
-    return () => sub.remove();
-  }, [router]);
+    const url = response?.notification.request.content.data?.['url'];
+    if (typeof url === 'string' && url.startsWith('/(app)')) {
+      router.push(url as Href);
+      void Notifications.clearLastNotificationResponseAsync();
+    }
+  }, [response, router]);
 
   return null;
 }

@@ -4,7 +4,7 @@ import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
 import { BILL_KIND_LABEL, billStatus, dueLabel } from '@/lib/bills';
-import { currentMonthKey, isoToCalendar, shortDate } from '@/lib/format';
+import { isoToCalendar, shortDate } from '@/lib/format';
 import {
   errorMessage,
   useBillCandidates,
@@ -19,7 +19,7 @@ export default function BillScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; month?: string }>();
   const id = params.id;
-  const bills = useBills(params.month ?? currentMonthKey());
+  const bills = useBills(params.month);
   const bill = bills.data?.find((b) => b.id === id);
   const candidates = useBillCandidates(bill && bill.status !== 'PAID' ? id : '');
   const commitments = useCommitments();

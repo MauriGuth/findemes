@@ -1,8 +1,10 @@
 import {
+  addMonths,
   formatArs,
   formatIsoDate,
+  monthKey,
   type MonthSummary,
-  nextMonthKey,
+  parseMonthKey,
   previousMonthKey,
   todayInArt,
 } from '@findemes/shared';
@@ -15,9 +17,10 @@ import { MoneyInput } from '@/components/MoneyInput';
 import { SuggestionsCard } from '@/components/SuggestionsCard';
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
 import { BILL_KIND_LABEL, billStatus, dueLabel } from '@/lib/bills';
-import { currentMonthKey, isoToCalendar, monthName, shortDate } from '@/lib/format';
+import { isoToCalendar, monthName, shortDate } from '@/lib/format';
 import {
   errorMessage,
+  useCurrentMonthKey,
   useBills,
   useCommitments,
   useCreateTransaction,
@@ -54,7 +57,10 @@ function itemWhen(item: Item): string {
 
 export default function PlanScreen() {
   const router = useRouter();
-  const [month, setMonth] = useState(currentMonthKey());
+  // Months away from the current one: follows the current month when the payday changes.
+  const current = useCurrentMonthKey();
+  const [offset, setOffset] = useState(0);
+  const month = monthKey(addMonths(parseMonthKey(current), offset));
   const summary = useSummary(month);
   const plan = usePlan(month);
   const transactions = useTransactions(month);
@@ -137,7 +143,7 @@ export default function PlanScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Mes anterior"
-            onPress={() => setMonth(previousMonthKey(month))}
+            onPress={() => setOffset((o) => o - 1)}
             className="px-3 py-2"
           >
             <Text className="text-2xl text-slate-300">‹</Text>
@@ -148,7 +154,7 @@ export default function PlanScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Mes siguiente"
-            onPress={() => setMonth(nextMonthKey(month))}
+            onPress={() => setOffset((o) => o + 1)}
             className="px-3 py-2"
           >
             <Text className="text-2xl text-slate-300">›</Text>

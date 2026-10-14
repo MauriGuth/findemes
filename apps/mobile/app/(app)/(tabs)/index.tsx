@@ -5,15 +5,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, Chip, Muted, Row, Screen } from '@/components/ui';
+import { calendarKey, dayLabel, isoToCalendar, monthName, shortDate } from '@/lib/format';
 import {
-  calendarKey,
-  currentMonthKey,
-  dayLabel,
-  isoToCalendar,
-  monthName,
-  shortDate,
-} from '@/lib/format';
-import {
+  useCurrentMonthKey,
   errorMessage,
   useCatalog,
   useCreateTransaction,
@@ -97,7 +91,7 @@ function IncomeLine({ summary }: { summary: MonthSummary }) {
 export default function HomeScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const month = currentMonthKey();
+  const month = useCurrentMonthKey();
   const summary = useSummary(month);
   const transactions = useTransactions(month);
   const catalog = useCatalog();

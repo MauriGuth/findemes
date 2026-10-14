@@ -6,7 +6,18 @@ const KEYS = {
   access: 'findemes.accessToken',
   refresh: 'findemes.refreshToken',
   device: 'findemes.deviceId',
+  payday: 'findemes.payday',
 } as const;
+
+/** The user's payday, kept so the right month shows before /me answers (or offline). */
+export async function loadStoredPayday(): Promise<number> {
+  const value = Number(await SecureStore.getItemAsync(KEYS.payday));
+  return Number.isInteger(value) && value >= 1 && value <= 28 ? value : 1;
+}
+
+export async function storePayday(payday: number): Promise<void> {
+  await SecureStore.setItemAsync(KEYS.payday, String(payday));
+}
 
 export async function loadStoredSession(): Promise<{
   tokens: Tokens | null;

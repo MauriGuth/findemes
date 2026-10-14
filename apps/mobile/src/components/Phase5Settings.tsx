@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Alert, Switch, Text, View } from 'react-native';
+import { Alert, Platform, Switch, Text, View } from 'react-native';
 
 import { Button, Card, Muted } from '@/components/ui';
 import { canUseBiometrics, isBiometricLockOn, setBiometricLock, unlock } from '@/lib/biometrics';
@@ -57,7 +57,7 @@ export function Phase5Settings() {
 
   const toggleLock = async (on: boolean) => {
     // Ask for the fingerprint before turning it on, so nobody locks themselves out.
-    if (on && !(await unlock())) return;
+    if (on && (await unlock()) !== 'ok') return;
     await setBiometricLock(on);
     setLock(on);
   };
@@ -108,8 +108,10 @@ export function Phase5Settings() {
         <Card>
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="text-base text-white">Bloqueo con huella</Text>
-              <Muted>Pide tu huella al abrir la app y al volver después de un minuto.</Muted>
+              <Text className="text-base text-white">
+                {Platform.OS === 'ios' ? 'Bloqueo con Face ID o huella' : 'Bloqueo con huella'}
+              </Text>
+              <Muted>Te la pide al abrir la app y al volver después de un minuto.</Muted>
             </View>
             <Switch value={lock} onValueChange={(on) => void toggleLock(on)} />
           </View>

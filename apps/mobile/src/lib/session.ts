@@ -11,7 +11,14 @@ import {
 } from './auth-tokens';
 import { setCurrentPayday } from './format';
 import { queryClient } from './query-client';
-import { clearStoredTokens, loadStoredSession, storeDeviceId, storeTokens } from './secure-store';
+import {
+  clearStoredTokens,
+  loadStoredPayday,
+  loadStoredSession,
+  storeDeviceId,
+  storePayday,
+  storeTokens,
+} from './secure-store';
 
 export type SessionStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -19,6 +26,8 @@ interface SessionState {
   status: SessionStatus;
   user: User | null;
   deviceId: string | null;
+  /** Mirrors user.payday, available before /me answers (Phase 5). */
+  payday: number;
   hydrate: () => Promise<void>;
   signIn: (session: AuthSession) => Promise<void>;
   signOut: () => Promise<void>;
@@ -31,10 +40,16 @@ export const useSession = create<SessionState>((set, get) => ({
   status: 'loading',
   user: null,
   deviceId: null,
+  payday: 1,
 
   hydrate: async () => {
-    const { tokens, deviceId } = await loadStoredSession();
+    const [{ tokens, deviceId }, payday] = await Promise.all([
+      loadStoredSession(),
+      loadStoredPayday(),
+    ]);
     setTokens(tokens);
+    setCurrentPayday(payday);
+    set({ payday });
     // The user profile is fetched by the app once signed in; tokens are enough to start.
     set({ status: tokens ? 'signedIn' : 'signedOut', deviceId });
   },
@@ -44,7 +59,13 @@ export const useSession = create<SessionState>((set, get) => ({
     setTokens(tokens);
     await Promise.all([storeTokens(tokens), storeDeviceId(session.deviceId)]);
     setCurrentPayday(session.user.payday);
-    set({ status: 'signedIn', user: session.user, deviceId: session.deviceId });
+    void storePayday(session.user.payday);
+    set({
+      status: 'signedIn',
+      user: session.user,
+      deviceId: session.deviceId,
+      payday: session.user.payday,
+    });
   },
 
   signOut: async () => {
@@ -71,7 +92,8 @@ export const useSession = create<SessionState>((set, get) => ({
 
   setUser: (user) => {
     setCurrentPayday(user.payday);
-    set({ user });
+    if (user.payday !== get().payday) void storePayday(user.payday);
+    set({ user, payday: user.payday });
   },
 }));
 

@@ -5,7 +5,6 @@ import {
   daysBetween,
   formatIsoDate,
   type MonthKey,
-  monthKey,
   parseMonthKey,
   periodKeyOf,
   toArtCalendarDate,

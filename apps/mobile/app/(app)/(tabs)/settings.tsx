@@ -178,7 +178,7 @@ export default function SettingsScreen() {
           <Muted>La hora es aproximada: Android puede correrla unos minutos.</Muted>
         </Card>
 
-        <Phase5Settings />
+        <Phase5Settings key={user?.payday ?? 0} />
 
         <CaptureCard />
 

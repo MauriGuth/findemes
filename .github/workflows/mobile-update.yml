@@ -43,9 +43,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - if: env.EXPO_TOKEN != ''
         run: pnpm turbo run build --filter=@findemes/shared
+      # --environment preview pulls the same EAS variables the build used (GOOGLE_SERVICES_JSON):
+      # without them the runtime fingerprint differs and no installed APK gets the update.
       - name: Publish to the preview channel
         if: env.EXPO_TOKEN != ''
         working-directory: apps/mobile
         run: >-
-          npx --yes eas-cli@latest update --channel preview --platform android
+          npx --yes eas-cli@latest update --channel preview --environment preview --platform android
           --message "$(git log -1 --format=%s)" --non-interactive

@@ -5,8 +5,9 @@ import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, Chip, Muted, Row, Screen, Title } from '@/components/ui';
 import { BILL_KIND_LABEL, dueLabel } from '@/lib/bills';
-import { currentMonthKey, dayLabel, isoToCalendar } from '@/lib/format';
+import { dayLabel, isoToCalendar } from '@/lib/format';
 import {
+  useCurrentMonthKey,
   errorMessage,
   useBills,
   useCatalog,
@@ -52,7 +53,7 @@ function Line({ tx, source }: { tx: Transaction; source: string | undefined }) {
 /** What automatic capture needs the user to decide (Phase 2). Phase 1 questions stay on Inicio. */
 export default function PendingScreen() {
   const router = useRouter();
-  const month = currentMonthKey();
+  const month = useCurrentMonthKey();
   const summary = useSummary(month);
   const transactions = useTransactions(month);
   // A bank email on the 1st can pair with the notification of the 31st.
