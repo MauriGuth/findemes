@@ -11,3 +11,6 @@
 apps/mobile
 docs
 *.md
+# The public privacy page is rendered from this file (apps/api/Dockerfile, ADR 017).
+!docs/privacy
+!docs/privacy/privacy-policy.md
