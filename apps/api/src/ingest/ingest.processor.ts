@@ -99,7 +99,7 @@ export class IngestProcessor {
    * leaves an LlmUsage row with tokens and cost; errors propagate so the event is FAILED and
    * retried on a later upload.
    */
-  private async fallback(
+  async fallback(
     raw: { id: string; userId: string },
     sourceName: string,
     text: string,
@@ -172,7 +172,7 @@ export class IngestProcessor {
     };
   }
 
-  private async templatesFor(sourceId: string): Promise<ParserTemplateData[]> {
+  async templatesFor(sourceId: string): Promise<ParserTemplateData[]> {
     const rows = await this.prisma.parserTemplate.findMany({
       where: { sourceId, active: true },
       orderBy: [{ priority: 'asc' }, { name: 'asc' }],

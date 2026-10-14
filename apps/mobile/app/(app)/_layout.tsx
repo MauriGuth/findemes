@@ -31,6 +31,7 @@ export default function AppLayout() {
         <Stack.Screen name="chats" options={{ presentation: 'modal' }} />
         <Stack.Screen name="budgets" options={{ presentation: 'modal' }} />
         <Stack.Screen name="stats" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="shortcuts" options={{ presentation: 'modal' }} />
       </Stack>
     </BiometricGate>
   );

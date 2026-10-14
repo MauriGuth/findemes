@@ -8,11 +8,16 @@ import {
   IngestConfigSchema,
   type IngestResult,
   IngestResultSchema,
+  type ShortcutEvent,
+  ShortcutEventSchema,
+  type ShortcutResult,
+  ShortcutResultSchema,
 } from '@findemes/shared';
 
 import { CurrentIngestDevice, IngestAuth } from './ingest-auth.guard.js';
 import { type IngestDevice } from './ingest-token.service.js';
 import { IngestService } from './ingest.service.js';
+import { ShortcutService } from './shortcut.service.js';
 
 const MINUTE = 60_000;
 
@@ -20,7 +25,22 @@ const MINUTE = 60_000;
 @IngestAuth()
 @Controller('ingest')
 export class IngestController {
-  constructor(private readonly ingest: IngestService) {}
+  constructor(
+    private readonly ingest: IngestService,
+    private readonly shortcuts: ShortcutService,
+  ) {}
+
+  /** From an iPhone Shortcut: a bank SMS/notification text or an Apple Pay transaction. */
+  @Post('shortcut')
+  @HttpCode(200)
+  @Throttle({ minute: { limit: 30, ttl: MINUTE } })
+  @ApiOkResponse({ standardSchema: ShortcutResultSchema })
+  shortcut(
+    @CurrentIngestDevice() device: IngestDevice,
+    @Body({ schema: ShortcutEventSchema }) event: ShortcutEvent,
+  ): Promise<ShortcutResult> {
+    return this.shortcuts.receive(device, event);
+  }
 
   /** Whitelist for the listener; also tells the API the listener is alive. */
   @Get('config')

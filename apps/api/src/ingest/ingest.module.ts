@@ -7,10 +7,18 @@ import { IngestProcessor } from './ingest.processor.js';
 import { IngestService } from './ingest.service.js';
 import { IngestTokenService } from './ingest-token.service.js';
 import { RawEventCrypto } from './raw-event-crypto.js';
+import { ShortcutService } from './shortcut.service.js';
 
 @Module({
   controllers: [DevicesController, IngestController],
-  providers: [RawEventCrypto, IngestTokenService, IngestAuthGuard, IngestService, IngestProcessor],
+  providers: [
+    RawEventCrypto,
+    IngestTokenService,
+    IngestAuthGuard,
+    IngestService,
+    IngestProcessor,
+    ShortcutService,
+  ],
   exports: [IngestTokenService, IngestProcessor, RawEventCrypto],
 })
 export class IngestModule {}

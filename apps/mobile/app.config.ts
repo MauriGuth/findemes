@@ -2,6 +2,12 @@ import { type ConfigContext, type ExpoConfig } from 'expo/config';
 
 const APP_ID = 'ar.com.novasolutions.findemes';
 
+/**
+ * Firebase config for push on Android (ADR 015): the path in GOOGLE_SERVICES_JSON, an EAS
+ * "file" environment variable. Without it the build works and push stays off.
+ */
+const googleServicesFile = process.env.GOOGLE_SERVICES_JSON || undefined;
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Findemes',
@@ -14,6 +20,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: APP_ID,
     supportsTablet: false,
+    // Only standard HTTPS: no export-compliance paperwork for TestFlight (ADR 016).
+    config: { usesNonExemptEncryption: false },
+    infoPlist: {
+      NSFaceIDUsageDescription: 'Findemes usa Face ID para desbloquear la app si lo activás.',
+    },
   },
   android: {
     package: APP_ID,
@@ -24,6 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    ...(googleServicesFile ? { googleServicesFile } : {}),
   },
   web: {
     favicon: './assets/favicon.png',

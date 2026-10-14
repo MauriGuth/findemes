@@ -40,3 +40,6 @@ yarn-error.*
 
 # local databases
 .pgdata/
+
+# Firebase (push): provided as an EAS file variable
+/apps/mobile/google-services.json

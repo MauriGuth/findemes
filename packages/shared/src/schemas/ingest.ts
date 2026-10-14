@@ -54,3 +54,35 @@ export const IngestTokenSchema = z
   })
   .meta({ id: 'IngestToken' });
 export type IngestToken = z.infer<typeof IngestTokenSchema>;
+
+/**
+ * What an iPhone Shortcut sends (Phase 6, ADR 016): the text of a bank SMS or notification
+ * it received, or an Apple Pay transaction's fields. Authenticated with the ingest token.
+ */
+export const ShortcutEventSchema = z
+  .strictObject({
+    kind: z.enum(['message', 'apple_pay']).default('message'),
+    /** The message as received ("Shortcut Input"); required for kind=message. */
+    text: z.string().trim().max(4000).optional(),
+    /** Who sent it: SMS sender or app name, if the Shortcut has it. */
+    sender: z.string().trim().max(120).optional(),
+    /** Apple Pay "Amount", as the iPhone formats it ("$ 1.234,56"). */
+    amount: z.string().trim().max(40).optional(),
+    /** Apple Pay "Merchant". */
+    merchant: z.string().trim().max(200).optional(),
+    /** Apple Pay "Card" (the card's name in Wallet). */
+    card: z.string().trim().max(120).optional(),
+  })
+  .refine((v) => (v.kind === 'message' ? !!v.text : !!v.amount), {
+    error: 'Falta el texto del mensaje o el monto',
+  });
+export type ShortcutEventInput = z.input<typeof ShortcutEventSchema>;
+export type ShortcutEvent = z.output<typeof ShortcutEventSchema>;
+
+export const ShortcutResultSchema = z
+  .object({
+    /** movement: recorded; duplicate: already received; ignored: not a money message. */
+    outcome: z.enum(['movement', 'duplicate', 'ignored']),
+  })
+  .meta({ id: 'ShortcutResult' });
+export type ShortcutResult = z.infer<typeof ShortcutResultSchema>;

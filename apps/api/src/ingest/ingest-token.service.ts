@@ -96,11 +96,16 @@ export class IngestTokenService {
     if (!raw.startsWith(PREFIX)) return null;
     const device = await this.prisma.device.findUnique({
       where: { ingestTokenHash: IngestTokenService.hash(raw) },
-      select: { id: true, userId: true, ingestTokenIssuedAt: true },
+      select: { id: true, userId: true, ingestTokenIssuedAt: true, platform: true },
     });
     if (!device?.ingestTokenIssuedAt) return null;
+    // On iPhone the token lives inside a Shortcut the app cannot update, so it does not age
+    // out (ADR 016); logout, account deletion or a new key still revoke it.
     const maxAgeMs = 2 * this.rotateDays * DAY_MS;
-    if (this.clock.now().getTime() - device.ingestTokenIssuedAt.getTime() > maxAgeMs) return null;
+    const expired =
+      device.platform !== 'IOS' &&
+      this.clock.now().getTime() - device.ingestTokenIssuedAt.getTime() > maxAgeMs;
+    if (expired) return null;
     return { deviceId: device.id, userId: device.userId };
   }
 }

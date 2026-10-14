@@ -250,3 +250,13 @@ Período de cobro a cobro, alertas push, presupuestos, estadísticas y bloqueo c
 - Push por el servicio de Expo (`PUSH_PROVIDER`, `ExpoPushSender`); `AlertsService` en segundo plano (`drain()` en tests). Se avisa: movimiento detectado (notificación o correo), ingreso, presupuesto al 80% y 100% una vez por período. Los vencimientos siguen siendo locales. `User.pushAlerts`; token en `PUT /devices/current/push-token`. Canal Android `alerts`.
 - `Budget` (uno por categoría); lo gastado se calcula con `computeBudgets` (ARS, sin ignorados, transferencias propias ni pagos de resumen; débito y crédito; pendientes incluidos). `GET /insights/stats` con `computeStats`.
 - Bloqueo con huella local (`expo-local-authentication`, flag en SecureStore), pide al abrir y después de 1 minuto en segundo plano.
+
+## Fase 6 — estado (2026-10-14)
+
+API y pantalla de Atajos listas y verificadas (e2e 92). ADR 016. Checklist en `docs/testing/phase-6-manual.md`. Falta: la cuenta de Apple Developer de Mauricio para buildear iOS y probar en un iPhone (DoD). La share extension queda postergada hasta poder probarla en un dispositivo real (ADR 016).
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- `POST /ingest/shortcut` con el token de ingesta: `kind` `message` (texto + remitente; templates de la fuente nombrada o Claude) o `apple_pay` (importe, comercio, tarjeta; débito si la tarjeta dice "débito", si no crédito; siempre PENDING). RawEvent `IOS_SHORTCUT` cifrado, idempotente por dispositivo + contenido + minuto, códigos de seguridad descartados.
+- El token de ingesta de un dispositivo iOS no vence por edad (el atajo no se puede actualizar solo); se revoca al cerrar sesión, borrar la cuenta o generar otro.
+- `Mobile build` acepta `platform: ios`; el primer build iOS se corre a mano para crear certificados.

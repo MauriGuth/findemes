@@ -2,7 +2,7 @@
 
 **Before starting**
 
-- Push on Android needs Firebase: create a Firebase project → add an Android app with package `ar.com.novasolutions.findemes` → download `google-services.json` → Project settings → Service accounts → generate a private key (FCM V1). Then in `apps/mobile`: `npx eas-cli@latest credentials` → Android → preview → Google Service Account Key for FCM V1 → upload the key. Put `google-services.json` in `apps/mobile/` (it is not a secret, but keep it out of the repo if you prefer: `android.googleServicesFile` in `app.config.ts` points to it).
+- Push on Android needs Firebase: console.firebase.google.com → create a project → add an Android app with package `ar.com.novasolutions.findemes` → download `google-services.json`. Project settings → Service accounts → Generate new private key (the FCM V1 key). In `apps/mobile`: `npx eas-cli@latest credentials` → Android → preview → "Google Service Account Key for Push Notifications (FCM V1)" → upload that key; and `npx eas-cli@latest env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment preview --visibility sensitive`. Do not commit either file (`.gitignore` covers `google-services.json`).
 - The deploy shows migration `20261015130000_phase5_budgets_payday`.
 - **New APK needed** (fingerprint lock and push are native): run the `Mobile build` workflow (profile `preview`).
 

@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, Switch, Text, View } from 'react-native';
 
 import { CaptureCard } from '@/components/CaptureCard';
 import { Phase5Settings } from '@/components/Phase5Settings';
@@ -180,6 +180,18 @@ export default function SettingsScreen() {
         <Phase5Settings />
 
         <CaptureCard />
+
+        {Platform.OS === 'ios' ? (
+          <Card>
+            <Text className="text-base text-white">Atajos del iPhone</Text>
+            <Muted>Mandá los SMS de tu banco y tus pagos con Apple Pay a Findemes.</Muted>
+            <Button
+              label="Configurar"
+              variant="secondary"
+              onPress={() => router.push('/(app)/shortcuts')}
+            />
+          </Card>
+        ) : null}
 
         <Card>
           <Text className="text-base text-white">Tus correos</Text>
