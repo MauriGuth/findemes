@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { computeMonthSummary } from '../compute-month-summary.js';
 import {
   type MonthSummaryInput,
+  type SummaryBillInput,
   type SummaryCommitmentInput,
   type SummaryTransactionInput,
 } from '../types.js';
@@ -306,6 +307,7 @@ describe('T3 — credit vs debit', () => {
       amount: '129000.00',
       paid: false,
       paidAmount: '0.00',
+      source: 'estimate',
     });
     expect(unpaid.remaining).toBe('1371000.00');
     expect(unpaid.pending.needsStatementPayment).toBe(true);
@@ -320,6 +322,7 @@ describe('T3 — credit vs debit', () => {
       amount: '129000.00',
       paid: true,
       paidAmount: '129000.00',
+      source: 'estimate',
     });
     expect(paid.spent.cash).toBe('129000.00');
     expect(paid.remaining).toBe('1371000.00');
@@ -467,5 +470,123 @@ describe('edge cases', () => {
     const s = computeMonthSummary(input({ month: '2026-08' }));
     expect(s.daysLeft).toBe(0);
     expect(s.perDay).toBeNull();
+  });
+});
+
+let billSeq = 0;
+function bill(partial: Partial<SummaryBillInput> & { amount: string }): SummaryBillInput {
+  billSeq += 1;
+  return {
+    id: `bill-${String(billSeq)}`,
+    kind: 'UTILITY',
+    issuer: 'Luz',
+    currency: 'ARS',
+    dueOn: '2026-09-25',
+    status: 'UNPAID',
+    commitmentId: null,
+    ...partial,
+  };
+}
+
+describe('T7 — bills by email (ADR 013)', () => {
+  it('T7a: an unpaid bill due this month is owed cash; paid or ignored it is not', () => {
+    const owed = bill({ amount: '80000.00' });
+    const s = computeMonthSummary(input({ bills: [owed] }));
+    expect(s.bills.unpaid).toBe('80000.00');
+    expect(s.remaining).toBe('1420000.00');
+    expect(s.bills.items).toEqual([
+      {
+        id: owed.id,
+        kind: 'UTILITY',
+        issuer: 'Luz',
+        amount: '80000.00',
+        dueOn: '2026-09-25',
+        status: 'UNPAID',
+        overdue: false,
+        commitmentId: null,
+      },
+    ]);
+
+    const payment = tx({ amount: '80000.00', occurredAt: '2026-09-20T15:00:00Z' });
+    const paid = computeMonthSummary(
+      input({ bills: [{ ...owed, status: 'PAID' }], transactions: [payment] }),
+    );
+    expect(paid.bills.unpaid).toBe('0.00');
+    expect(paid.remaining).toBe('1420000.00');
+
+    const ignored = computeMonthSummary(input({ bills: [{ ...owed, status: 'IGNORED' }] }));
+    expect(ignored.remaining).toBe('1500000.00');
+    expect(ignored.bills.items).toEqual([]);
+  });
+
+  it('T7b: a detected bill still counts while the user reviews it', () => {
+    const detected = bill({ amount: '30000.00', status: 'PENDING' });
+    const s = computeMonthSummary(input({ bills: [detected] }));
+    expect(s.remaining).toBe('1470000.00');
+    expect(s.pending.reviewBillIds).toEqual([detected.id]);
+  });
+
+  it('T7c: overdue bills count for 60 days; next month and USD bills do not', () => {
+    const overdue = bill({ amount: '10000.00', dueOn: '2026-08-20' });
+    const tooOld = bill({ amount: '20000.00', dueOn: '2026-06-01' });
+    const nextMonth = bill({ amount: '40000.00', dueOn: '2026-10-05' });
+    const dollars = bill({ amount: '50.00', currency: 'USD' });
+    const s = computeMonthSummary(input({ bills: [overdue, tooOld, nextMonth, dollars] }));
+    expect(s.bills.unpaid).toBe('10000.00');
+    expect(s.bills.items.map((b) => [b.id, b.overdue])).toEqual([[overdue.id, true]]);
+    expect(s.remaining).toBe('1490000.00');
+  });
+
+  it('T7d: a bill linked to a commitment sets its price for the month, never counted twice', () => {
+    const luz = commitment({ id: 'c-luz', name: 'Luz', kind: 'SERVICE', amount: '50000.00' });
+    const real = bill({ amount: '62000.00', commitmentId: 'c-luz' });
+    const s = computeMonthSummary(input({ commitments: [luz], bills: [real] }));
+    expect(s.commitments.unpaidCash).toBe('62000.00');
+    expect(s.commitments.items[0]?.amount).toBe('62000.00');
+    expect(s.bills.unpaid).toBe('0.00');
+    expect(s.bills.items).toEqual([]);
+    expect(s.remaining).toBe('1438000.00');
+
+    const payment = tx({
+      amount: '62000.00',
+      commitmentId: 'c-luz',
+      commitmentMonth: '2026-09',
+      occurredAt: '2026-09-20T15:00:00Z',
+    });
+    const paid = computeMonthSummary(
+      input({ commitments: [luz], bills: [{ ...real, status: 'PAID' }], transactions: [payment] }),
+    );
+    expect(paid.commitments.items[0]?.paid).toBe(true);
+    expect(paid.remaining).toBe('1438000.00');
+  });
+
+  it('T7e: a card statement replaces the estimated previous statement', () => {
+    const oct = input({
+      month: '2026-10',
+      today: { year: 2026, month: 10, day: 5 },
+      previousStatement: '129000.00',
+      bills: [
+        bill({ kind: 'CARD_STATEMENT', issuer: 'Visa', amount: '150000.00', dueOn: '2026-10-08' }),
+        bill({ kind: 'CARD_STATEMENT', issuer: 'Master', amount: '20000.00', dueOn: '2026-10-12' }),
+      ],
+    });
+    const s = computeMonthSummary(oct);
+    expect(s.statement.previous).toEqual({
+      amount: '170000.00',
+      paid: false,
+      paidAmount: '0.00',
+      source: 'bill',
+    });
+    expect(s.bills.unpaid).toBe('0.00');
+    expect(s.remaining).toBe('1330000.00');
+
+    const pago = tx({
+      amount: '170000.00',
+      occurredAt: '2026-10-04T15:00:00Z',
+      isStatementPayment: true,
+    });
+    const paid = computeMonthSummary({ ...oct, transactions: [pago] });
+    expect(paid.statement.previous.paid).toBe(true);
+    expect(paid.remaining).toBe('1330000.00');
   });
 });

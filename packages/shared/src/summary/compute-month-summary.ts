@@ -1,4 +1,11 @@
-import { daysLeftForMonth, formatIsoDate, isInArtDay, isInArtMonth } from '../dates/tz.js';
+import {
+  addDays,
+  daysLeftForMonth,
+  formatIsoDate,
+  isInArtDay,
+  isInArtMonth,
+  parseMonthKey,
+} from '../dates/tz.js';
 import {
   addMoney,
   compareMoney,
@@ -17,14 +24,21 @@ import {
   commitmentMonthState,
 } from './commitment-schedule.js';
 import {
+  type BillSummaryItem,
   type CommitmentSummaryItem,
   type IncomeSource,
   type MonthSummary,
   type MonthSummaryInput,
+  type SummaryBillInput,
   type SummaryTransactionInput,
 } from './types.js';
 
 const ZERO: MoneyAmount = '0.00';
+
+/** Unpaid bills keep counting this many days after their due date, then drop off. */
+export const BILL_OVERDUE_DAYS = 60;
+
+const owes = (b: SummaryBillInput) => b.status === 'PENDING' || b.status === 'UNPAID';
 
 function isCashMethod(method: PaymentMethod): boolean {
   return commitmentIsCash(method);
@@ -48,11 +62,22 @@ function counts(t: SummaryTransactionInput): boolean {
  * The number at the top of the app, as a pure function of the month's data.
  *
  *   remaining = income − cash spent this month − unpaid cash commitments − unpaid previous statement
+ *               − unpaid bills
  *
- * See ADR 007 for the rules and the golden tests for the numbers.
+ * See ADR 007 (and ADR 013 for bills) for the rules and the golden tests for the numbers.
  */
 export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   const { month, today } = input;
+  const monthStart = formatIsoDate(parseMonthKey(month));
+  const overdueFrom = formatIsoDate(addDays(parseMonthKey(month), -BILL_OVERDUE_DAYS));
+  const bills = (input.bills ?? []).filter((b) => b.currency === 'ARS' && b.status !== 'IGNORED');
+  const dueThisMonth = (b: SummaryBillInput) => b.dueOn.startsWith(month);
+  /** A commitment's bill for this month sets what that commitment costs this month. */
+  const billOfCommitment = new Map(
+    bills
+      .filter((b) => b.commitmentId !== null && b.kind !== 'CARD_STATEMENT' && dueThisMonth(b))
+      .map((b) => [b.commitmentId, b]),
+  );
   const inMonth = (t: SummaryTransactionInput): boolean =>
     isInArtMonth(new Date(t.occurredAt), month);
   const eligible = input.transactions.filter(isEligible);
@@ -101,6 +126,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   let paidCash = ZERO;
   let paidCredit = ZERO;
   const unpaidDueCommitmentIds: string[] = [];
+  const pricedBillIds = new Set<string>();
   const todayIso = formatIsoDate(today);
 
   for (const c of input.commitments) {
@@ -109,7 +135,10 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     if (!applies && own.length === 0) continue;
 
     const paidAmount = sumMoney(own.map((t) => t.amount));
-    const unpaidAmount = applies ? nonNegative(subtractMoney(c.amount, paidAmount)) : ZERO;
+    const billed = applies ? billOfCommitment.get(c.id) : undefined;
+    if (billed) pricedBillIds.add(billed.id);
+    const amount = billed ? normalizeMoney(billed.amount) : normalizeMoney(c.amount);
+    const unpaidAmount = applies ? nonNegative(subtractMoney(amount, paidAmount)) : ZERO;
     const state = commitmentMonthState(c, month);
     const cash = commitmentIsCash(c.method);
 
@@ -127,7 +156,7 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
       id: c.id,
       name: c.name,
       kind: c.kind,
-      amount: normalizeMoney(c.amount),
+      amount,
       method: c.method,
       dueOn: state.dueOn,
       paid,
@@ -139,18 +168,48 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     });
   }
 
-  // ── previous statement ──
-  const previousAmount = normalizeMoney(input.previousStatement);
+  // ── previous statement: the real one when a card statement arrived, else the estimate ──
+  const statementBills = bills.filter((b) => b.kind === 'CARD_STATEMENT' && dueThisMonth(b));
+  const previousAmount =
+    statementBills.length > 0
+      ? sumMoney(statementBills.map((b) => b.amount))
+      : normalizeMoney(input.previousStatement);
   const statementPaidAmount = sumMoney(
     outs.filter((t) => isCashMethod(t.method) && t.isStatementPayment).map((t) => t.amount),
   );
   const statementPaid = compareMoney(statementPaidAmount, previousAmount) >= 0;
   const unpaidStatement = nonNegative(subtractMoney(previousAmount, statementPaidAmount));
 
+  // ── bills: owed cash, unless a card statement or the price of a commitment ──
+  const billItems: BillSummaryItem[] = bills
+    .filter(
+      (b) =>
+        b.kind !== 'CARD_STATEMENT' &&
+        !pricedBillIds.has(b.id) &&
+        (dueThisMonth(b) || (owes(b) && b.dueOn < monthStart && b.dueOn >= overdueFrom)),
+    )
+    .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
+    .map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      issuer: b.issuer,
+      amount: normalizeMoney(b.amount),
+      dueOn: b.dueOn,
+      status: b.status,
+      overdue: owes(b) && b.dueOn < todayIso,
+      commitmentId: b.commitmentId,
+    }));
+  const unpaidBills = sumMoney(
+    billItems.filter((b) => b.status === 'PENDING' || b.status === 'UNPAID').map((b) => b.amount),
+  );
+
   // ── the number ──
   const remaining = subtractMoney(
-    subtractMoney(subtractMoney(incomeTotal, spentCash), unpaidCash),
-    unpaidStatement,
+    subtractMoney(
+      subtractMoney(subtractMoney(incomeTotal, spentCash), unpaidCash),
+      unpaidStatement,
+    ),
+    unpaidBills,
   );
   const nextStatement = addMoney(spentCredit, unpaidCredit);
   const daysLeft = daysLeftForMonth(month, today);
@@ -183,9 +242,15 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     spent: { cash: spentCash, credit: spentCredit, today: spentToday },
     commitments: { unpaidCash, unpaidCredit, paidCash, paidCredit, items },
     statement: {
-      previous: { amount: previousAmount, paid: statementPaid, paidAmount: statementPaidAmount },
+      previous: {
+        amount: previousAmount,
+        paid: statementPaid,
+        paidAmount: statementPaidAmount,
+        source: statementBills.length > 0 ? 'bill' : 'estimate',
+      },
       next: nextStatement,
     },
+    bills: { unpaid: unpaidBills, items: billItems },
     remaining,
     perDay,
     usd: { spent: usdSpent, income: usdIncome },
@@ -196,6 +261,10 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
       needsStatementPayment: !statementPaid,
       unpaidDueCommitmentIds,
       ...review,
+      reviewBillIds: (input.bills ?? [])
+        .filter((b) => b.status === 'PENDING')
+        .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
+        .map((b) => b.id),
     },
   };
 }

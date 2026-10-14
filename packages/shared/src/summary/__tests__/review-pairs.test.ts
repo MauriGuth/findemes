@@ -70,6 +70,7 @@ describe('findReviewPairs', () => {
     expect(findReviewPairs([manual, auto, lone])).toEqual({
       ownTransferPairs: [],
       possibleDuplicatePairs: [{ autoId: auto.id, manualId: manual.id }],
+      crossChannelPairs: [],
       reviewTransactionIds: [lone.id],
     });
   });
@@ -81,8 +82,54 @@ describe('findReviewPairs', () => {
     expect(findReviewPairs([manual, auto, own])).toEqual({
       ownTransferPairs: [],
       possibleDuplicatePairs: [],
+      crossChannelPairs: [],
       reviewTransactionIds: [auto.id],
     });
+  });
+
+  it('pairs the same payment seen by a notification and by an email, within 24 hours', () => {
+    const notified = tx({
+      amount: '4500.00',
+      status: 'CONFIRMED',
+      capturedVia: 'ANDROID_NOTIFICATION',
+      occurredAt: at(0),
+    });
+    const emailed = tx({
+      amount: '4500.00',
+      status: 'PENDING',
+      capturedVia: 'EMAIL',
+      occurredAt: at(600),
+    });
+    const tooLate = tx({
+      amount: '9.00',
+      status: 'PENDING',
+      capturedVia: 'EMAIL',
+      occurredAt: at(0),
+    });
+    const other = tx({
+      amount: '9.00',
+      capturedVia: 'ANDROID_NOTIFICATION',
+      occurredAt: at(60 * 25),
+    });
+    expect(findReviewPairs([notified, emailed, tooLate, other])).toEqual({
+      ownTransferPairs: [],
+      possibleDuplicatePairs: [],
+      crossChannelPairs: [{ keepId: notified.id, dropId: emailed.id }],
+      reviewTransactionIds: [tooLate.id],
+    });
+  });
+
+  it('gives an email movement 24 hours to match a manual one', () => {
+    const manual = tx({ amount: '88.00', origin: 'MANUAL', sourceId: null, occurredAt: at(0) });
+    const emailed = tx({
+      amount: '88.00',
+      status: 'PENDING',
+      capturedVia: 'EMAIL',
+      occurredAt: at(300),
+    });
+    expect(findReviewPairs([manual, emailed]).possibleDuplicatePairs).toEqual([
+      { autoId: emailed.id, manualId: manual.id },
+    ]);
   });
 });
 

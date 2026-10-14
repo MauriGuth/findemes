@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { IsoDateSchema, MoneyAmountSchema, MonthKeySchema, UuidSchema } from './common.js';
-import { CommitmentKind, PaymentMethod } from './enums.js';
+import { BillKind, BillStatus, CommitmentKind, PaymentMethod } from './enums.js';
 
 export const SummaryQuerySchema = z.strictObject({ month: MonthKeySchema.optional() });
 
@@ -50,8 +50,24 @@ export const MonthSummarySchema = z
         amount: MoneyAmountSchema,
         paid: z.boolean(),
         paidAmount: MoneyAmountSchema,
+        source: z.enum(['bill', 'estimate']),
       }),
       next: MoneyAmountSchema,
+    }),
+    bills: z.object({
+      unpaid: MoneyAmountSchema,
+      items: z.array(
+        z.object({
+          id: UuidSchema,
+          kind: BillKind,
+          issuer: z.string(),
+          amount: MoneyAmountSchema,
+          dueOn: IsoDateSchema,
+          status: BillStatus,
+          overdue: z.boolean(),
+          commitmentId: UuidSchema.nullable(),
+        }),
+      ),
     }),
     remaining: MoneyAmountSchema,
     perDay: MoneyAmountSchema.nullable(),
@@ -65,6 +81,8 @@ export const MonthSummarySchema = z
       reviewTransactionIds: z.array(UuidSchema),
       ownTransferPairs: z.array(z.object({ outId: UuidSchema, inId: UuidSchema })),
       possibleDuplicatePairs: z.array(z.object({ autoId: UuidSchema, manualId: UuidSchema })),
+      crossChannelPairs: z.array(z.object({ keepId: UuidSchema, dropId: UuidSchema })),
+      reviewBillIds: z.array(UuidSchema),
     }),
   })
   .meta({ id: 'MonthSummary' });

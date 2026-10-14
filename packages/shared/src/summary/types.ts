@@ -1,7 +1,10 @@
 import { type CalendarDate, type IsoDate, type MonthKey } from '../dates/tz.js';
 import { type MoneyAmount } from '../money/money.js';
 import {
+  type BillKind,
+  type BillStatus,
   type CommitmentKind,
+  type RawEventChannel,
   type Currency,
   type PaymentMethod,
   type TransactionDirection,
@@ -28,6 +31,20 @@ export interface SummaryTransactionInput {
   /** MANUAL, or detected from a notification (TEMPLATE / LLM). */
   origin: TransactionOrigin;
   sourceId: string | null;
+  /** Channel of the raw event it came from; null for manual movements. */
+  capturedVia?: RawEventChannel | null;
+}
+
+export interface SummaryBillInput {
+  id: string;
+  kind: BillKind;
+  issuer: string;
+  amount: MoneyAmount;
+  currency: Currency;
+  dueOn: IsoDate;
+  /** PAID only while its payment exists and is not ignored (the API checks). */
+  status: BillStatus;
+  commitmentId: string | null;
 }
 
 export interface SummaryCommitmentInput {
@@ -60,6 +77,19 @@ export interface MonthSummaryInput {
   commitments: SummaryCommitmentInput[];
   /** Transactions of the month (occurredAt in monthRange) plus the ones settling a commitment in this month. */
   transactions: SummaryTransactionInput[];
+  /** Bills due this month or overdue up to BILL_OVERDUE_DAYS (ADR 013). Optional for older callers. */
+  bills?: SummaryBillInput[];
+}
+
+export interface BillSummaryItem {
+  id: string;
+  kind: BillKind;
+  issuer: string;
+  amount: MoneyAmount;
+  dueOn: IsoDate;
+  status: BillStatus;
+  overdue: boolean;
+  commitmentId: string | null;
 }
 
 export type IncomeSource = 'confirmed' | 'expected' | 'carried' | 'none';
@@ -99,9 +129,17 @@ export interface MonthSummary {
     items: CommitmentSummaryItem[];
   };
   statement: {
-    previous: { amount: MoneyAmount; paid: boolean; paidAmount: MoneyAmount };
+    previous: {
+      amount: MoneyAmount;
+      paid: boolean;
+      paidAmount: MoneyAmount;
+      /** 'bill' when a card statement arrived by email; 'estimate' from last month's credit. */
+      source: 'bill' | 'estimate';
+    };
     next: MoneyAmount;
   };
+  /** Bills that are not card statements nor priced commitments: owed cash this month. */
+  bills: { unpaid: MoneyAmount; items: BillSummaryItem[] };
   remaining: MoneyAmount;
   perDay: MoneyAmount | null;
   usd: { spent: MoneyAmount; income: MoneyAmount };
@@ -115,5 +153,9 @@ export interface MonthSummary {
     reviewTransactionIds: string[];
     ownTransferPairs: { outId: string; inId: string }[];
     possibleDuplicatePairs: { autoId: string; manualId: string }[];
+    /** The same payment seen by a notification and by an email (Phase 3). */
+    crossChannelPairs: { keepId: string; dropId: string }[];
+    /** Bills detected by email, waiting for "Está bien" / "No es mía". */
+    reviewBillIds: string[];
   };
 }

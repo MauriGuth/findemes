@@ -45,6 +45,25 @@ export type CommitmentKind = z.infer<typeof CommitmentKind>;
 export const ReceiptStatus = z.enum(['UPLOADED', 'EXTRACTED', 'MATCHED', 'UNMATCHED', 'FAILED']);
 export type ReceiptStatus = z.infer<typeof ReceiptStatus>;
 
+/** What a bill is for (Phase 3, ADR 013). CARD_STATEMENT replaces the estimated statement. */
+export const BillKind = z.enum([
+  'CARD_STATEMENT',
+  'UTILITY',
+  'EDUCATION',
+  'HEALTH',
+  'TAX',
+  'SUBSCRIPTION',
+  'OTHER',
+]);
+export type BillKind = z.infer<typeof BillKind>;
+
+/** PENDING = detected, waiting for the user; PENDING and UNPAID both count as owed. */
+export const BillStatus = z.enum(['PENDING', 'UNPAID', 'PAID', 'IGNORED']);
+export type BillStatus = z.infer<typeof BillStatus>;
+
+export const BillOrigin = z.enum(['EMAIL', 'MANUAL']);
+export type BillOrigin = z.infer<typeof BillOrigin>;
+
 /** Registry used by the Prisma drift test. Keys are the Prisma enum names. */
 export const PRISMA_ENUMS = {
   Currency,
@@ -58,4 +77,7 @@ export const PRISMA_ENUMS = {
   DevicePlatform,
   CommitmentKind,
   ReceiptStatus,
+  BillKind,
+  BillStatus,
+  BillOrigin,
 } as const;
