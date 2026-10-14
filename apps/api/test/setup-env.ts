@@ -14,5 +14,14 @@ process.env['LLM_PROVIDER'] ??= 'fake';
 process.env['INBOUND_EMAIL_ADDRESS'] ??= 'e2e-inbound@inbound.findemes.test';
 process.env['INBOUND_WEBHOOK_USER'] ??= 'postmark';
 process.env['INBOUND_WEBHOOK_PASSWORD'] ??= 'test-only-inbound-password-000000000000';
+// Chats: fake credentials; the clients' outbound calls are replaced in the chat e2e.
+process.env['TELEGRAM_BOT_TOKEN'] ??= '123456:test-only-telegram-token-000000';
+process.env['TELEGRAM_BOT_USERNAME'] ??= 'findemes_test_bot';
+process.env['TELEGRAM_WEBHOOK_SECRET'] ??= 'test-only-telegram-secret-0000000000';
+process.env['WHATSAPP_ACCESS_TOKEN'] ??= 'test-only-whatsapp-token-000000';
+process.env['WHATSAPP_PHONE_NUMBER_ID'] ??= '100200300';
+process.env['WHATSAPP_APP_SECRET'] ??= 'test-only-whatsapp-app-secret';
+process.env['WHATSAPP_VERIFY_TOKEN'] ??= 'test-only-verify-token';
+process.env['WHATSAPP_DISPLAY_NUMBER'] ??= '5492990000000';
 
 config();

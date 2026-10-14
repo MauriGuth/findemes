@@ -78,7 +78,7 @@ describe('receipts and AI entries (e2e)', () => {
   it('reports which features are configured', async () => {
     const session = await loginAs(ctx);
     const res = await api().get('/features').set(session.auth).expect(200);
-    expect(res.body).toEqual({ receipts: true, aiEntries: true, telegram: false, whatsapp: false });
+    expect(res.body).toEqual({ receipts: true, aiEntries: true, telegram: true, whatsapp: true });
   });
 
   it('a ticket without a matching movement creates a pending cash movement with its items', async () => {

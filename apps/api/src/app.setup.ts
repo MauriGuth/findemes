@@ -48,6 +48,18 @@ export function configureApp(app: NestExpressApplication): void {
       (req.url ?? '').startsWith('/inbound/') &&
       (req.headers['content-type'] ?? '').includes('json'),
   });
+  // WhatsApp signs the exact bytes it sends (X-Hub-Signature-256): keep them for the check.
+  // Nest passes the options through to Express's json parser, `verify` included.
+  const whatsappParser = {
+    limit: '1mb',
+    type: (req: { url?: string; headers: { 'content-type'?: string } }) =>
+      (req.url ?? '').startsWith('/chat/whatsapp') &&
+      (req.headers['content-type'] ?? '').includes('json'),
+    verify: (req: { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
+      req.rawBody = Buffer.from(buf);
+    },
+  };
+  app.useBodyParser('json', whatsappParser);
   app.useBodyParser('json', { limit: '100kb' });
 
   // zod (Standard Schema) validation: `@Body({ schema })`, `@Query({ schema })`, ...

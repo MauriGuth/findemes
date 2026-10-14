@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module.js';
 import { ClockModule } from './common/clock.js';
 
+import { ChatModule } from './chat/chat.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { validateEnv } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
@@ -55,6 +56,7 @@ import { UsersModule } from './users/users.module.js';
     StorageModule,
     ReceiptsModule,
     EntriesModule,
+    ChatModule,
   ],
   // ThrottlerGuard is a plain provider too so tests can override it (overrideGuard cannot reach APP_GUARD).
   providers: [ThrottlerGuard, { provide: APP_GUARD, useExisting: ThrottlerGuard }],
