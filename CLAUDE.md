@@ -194,4 +194,5 @@ Todo lo que no depende de muestras está hecho y verificado localmente: módulo 
 - `fieldMap` es `jsonb`: Postgres reordena las claves, así que el seed compara con `stableJson`; sin eso, cada deploy publicaba una versión nueva de cada template.
 - `pkill -f "expo [s]tart"` en la misma línea que otros comandos mata la propia shell (exit 144): correrlo solo.
 - Maven Central devuelve 429 a veces al compilar el Kotlin localmente: reintentar.
+- Expo publica parches del SDK 57 seguido y `expo-doctor` pone rojo el job mobile del CI aunque el cambio no toque mobile: `npx expo install --fix` en `apps/mobile`. Si después marca una dependencia transitiva vieja (pasó con `@expo/metro-runtime`), se declara directa con `npx expo install <paquete>`.
 - Nunca inventar un fixture de banco: los tests del motor usan una fuente sintética y los e2e templates `E2E …`; `__fixtures__/<source>/` es solo para muestras reales anonimizadas.
