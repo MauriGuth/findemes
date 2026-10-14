@@ -7,6 +7,7 @@ import {
   type MonthKey,
   monthKey,
   parseMonthKey,
+  periodKeyOf,
   toArtCalendarDate,
   todayInArt,
 } from '@findemes/shared';
@@ -27,8 +28,16 @@ const MONTHS = [
   'diciembre',
 ];
 
+/** The signed-in user's payday; the session keeps it current (Phase 5). */
+let payday = 1;
+
+export function setCurrentPayday(value: number): void {
+  payday = value;
+}
+
+/** The user's current month: from payday to payday ("hasta que cobrés"). */
 export function currentMonthKey(): MonthKey {
-  return monthKey(todayInArt());
+  return periodKeyOf(todayInArt(), payday);
 }
 
 /** "octubre 2026" */

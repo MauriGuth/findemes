@@ -33,13 +33,18 @@ const METHOD_LABEL: Record<Transaction['method'], string> = {
   CASH: 'Efectivo',
 };
 
+/** "hasta el 1" with payday 1; "hasta que cobrés (el 5)" otherwise (Phase 5). */
+function untilPayday(summary: MonthSummary): string {
+  return summary.payday === 1 ? 'hasta el 1' : `hasta que cobrés (el ${String(summary.payday)})`;
+}
+
 function Header({ summary }: { summary: MonthSummary }) {
   const over = summary.remaining.startsWith('-') || summary.remaining === '0.00';
   if (summary.income.source === 'none') {
     return (
       <View className="gap-1">
         <Text className="text-3xl font-bold text-white">Contanos cuánto esperás cobrar</Text>
-        <Muted>Con eso calculamos cuánto te queda hasta el 1.</Muted>
+        <Muted>Con eso calculamos cuánto te queda {untilPayday(summary)}.</Muted>
       </View>
     );
   }
@@ -50,7 +55,9 @@ function Header({ summary }: { summary: MonthSummary }) {
         <Text className="text-5xl font-bold tracking-tight text-danger">
           {formatArs(summary.remaining.replace('-', ''), { cents: false })}
         </Text>
-        <Text className="text-base text-slate-300">faltan {summary.daysLeft} días para el 1</Text>
+        <Text className="text-base text-slate-300">
+          faltan {summary.daysLeft} días para que cobrés
+        </Text>
       </View>
     );
   }
@@ -61,7 +68,7 @@ function Header({ summary }: { summary: MonthSummary }) {
         {formatArs(summary.remaining, { cents: false })}
       </Text>
       <Text className="text-base text-slate-300">
-        hasta el 1
+        {untilPayday(summary)}
         {summary.perDay ? ` · ${formatArs(summary.perDay, { cents: false })} por día` : ''}
       </Text>
     </View>

@@ -1,15 +1,18 @@
 import { Stack } from 'expo-router';
 
+import { BiometricGate } from '@/components/BiometricGate';
 import { CaptureSync } from '@/components/CaptureSync';
+import { PushSync } from '@/components/PushSync';
 import { ReminderSync } from '@/components/ReminderSync';
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function AppLayout() {
   return (
-    <>
+    <BiometricGate>
       <ReminderSync />
       <CaptureSync />
+      <PushSync />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0F172A' } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="transactions/new" options={{ presentation: 'modal' }} />
@@ -26,7 +29,9 @@ export default function AppLayout() {
         <Stack.Screen name="entries/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="receipts/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="chats" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="budgets" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="stats" options={{ presentation: 'modal' }} />
       </Stack>
-    </>
+    </BiometricGate>
   );
 }

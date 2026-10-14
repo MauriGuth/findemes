@@ -1,4 +1,4 @@
-# Política de privacidad de Findemes (borrador, Fase 4)
+# Política de privacidad de Findemes (borrador, Fase 5)
 
 _Borrador para revisión. La versión publicada (requisito de Google Play y App Store) sale de este texto en la Fase 5, con la URL pública de solicitud de borrado que pide Google Play._
 
@@ -29,6 +29,7 @@ Solamente para que la app funcione: calcular el número de la pantalla principal
 - Las **fotos de tickets** y lo que escribís para cargar gastos también los lee Claude, para sacar montos, comercios y categorías.
 - **Cloudflare** (Cloudflare, Inc., Estados Unidos) guarda las fotos de los tickets en un almacenamiento privado (R2). Solo se pueden ver con un enlace firmado que vence en minutos.
 - **Telegram** (Telegram Messenger Inc.) y **Meta** (WhatsApp, Meta Platforms, Inc.) transportan los mensajes que le mandás a Findemes por esos chats, según sus propias políticas.
+- **Expo** (650 Industries, Inc., Estados Unidos) y **Google** (Firebase Cloud Messaging) entregan las alertas al momento si las activás. La alerta lleva el monto y el comercio; en la pantalla bloqueada se ocultan.
 - **Postmark** (ActiveCampaign, LLC, Estados Unidos) recibe los correos que reenviás a tu dirección de Findemes y nos los pasa. Conserva una copia hasta 45 días en sus servidores.
 
 ## Cuánto tiempo
@@ -40,6 +41,10 @@ Mientras tengas cuenta. Los códigos de acceso vencen a los 10 minutos y se borr
 Podés acceder, corregir y suprimir tus datos. Desde **Ajustes → Eliminar mi cuenta** se borra todo en el momento y no se puede deshacer. Para cualquier otro pedido escribinos a la dirección de contacto de la ficha de la app.
 
 La Agencia de Acceso a la Información Pública, órgano de control de la Ley 25.326, atiende denuncias y reclamos por incumplimiento de las normas de protección de datos personales.
+
+## Bloqueo con huella
+
+Si lo activás, la huella la verifica tu teléfono. Findemes no la ve ni la guarda.
 
 ## El recordatorio diario
 

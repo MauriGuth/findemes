@@ -195,7 +195,7 @@ export function TransactionForm({ existing, onDone }: Props) {
         <Row>
           <Chip label="Pesos" selected={currency === 'ARS'} onPress={() => setCurrency('ARS')} />
           <Chip label="Dólares" selected={currency === 'USD'} onPress={() => setCurrency('USD')} />
-          {currency === 'USD' ? <Muted>USD no entra en la cuenta hasta el 1.</Muted> : null}
+          {currency === 'USD' ? <Muted>USD no entra en la cuenta de lo que te queda.</Muted> : null}
         </Row>
 
         <View className="gap-2">

@@ -40,3 +40,12 @@ Rules:
 - A `CARD_STATEMENT` bill due in the month replaces the estimated previous statement (`statement.previous.source = 'bill'`); its payment is still a statement payment.
 
 A `PAID` bill whose payment was deleted or ignored is owed again.
+
+## Amendment (2026-10-14, ADR 015): "hasta que cobrés"
+
+The month is the user's **period**, from payday to payday (`User.payday`, 1..28; 29–31 are not offered because they do not exist every month). Period `M` is `[payday of M, payday of M+1)` in Argentina time; payday 1 is exactly the calendar month, so every golden test above holds unchanged.
+
+- Movements, bills (due date), statement payments and USD count when they fall inside the period.
+- A commitment's due day `d` falls in the period's first calendar month when `d ≥ payday`, else in the next one (`dueDateInPeriod`). Commitment payments, salaries and plans keep their month key, which now names the period.
+- `daysLeft` counts until the next payday, today included; the summary returns `payday` and `periodEnd`.
+- The API and the app derive "the current month" with `periodKeyOf(today, payday)`.

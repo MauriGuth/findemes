@@ -239,3 +239,14 @@ Tickets, carga con IA y chats implementados y verificados localmente (API unit +
 
 - Los e2e corren con credenciales falsas de Telegram/WhatsApp en `test/setup-env.ts`; el chat e2e reemplaza los clientes y el bucket (`test/helpers/storage.ts`).
 - El parser JSON de `/chat/whatsapp` guarda los bytes crudos (`req.rawBody`) para verificar la firma: no tocar el orden de `useBodyParser` en `configureApp`.
+
+## Fase 5 — estado (2026-10-14)
+
+Período de cobro a cobro, alertas push, presupuestos, estadísticas y bloqueo con huella implementados y verificados localmente (shared 189 tests, API unit + 87 e2e, lint/typecheck/bundle, expo-doctor). ADR 015 (con DoD) y enmienda de ADR 007. Checklist en `docs/testing/phase-5-manual.md`. Falta: que Mauricio configure Firebase/FCM en EAS para que lleguen los push en Android y buildee el APK nuevo.
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- `User.payday` 1..28 (default 1). Período `M` = [payday de M, payday de M+1); con 1 es el mes calendario. Todo lo que hablaba de "mes" usa `periodRange`/`periodKeyOf`/`dueDateInPeriod` de `shared` con el payday del usuario (`loadPayday`). En la app, `currentMonthKey()` usa el payday de la sesión.
+- Push por el servicio de Expo (`PUSH_PROVIDER`, `ExpoPushSender`); `AlertsService` en segundo plano (`drain()` en tests). Se avisa: movimiento detectado (notificación o correo), ingreso, presupuesto al 80% y 100% una vez por período. Los vencimientos siguen siendo locales. `User.pushAlerts`; token en `PUT /devices/current/push-token`. Canal Android `alerts`.
+- `Budget` (uno por categoría); lo gastado se calcula con `computeBudgets` (ARS, sin ignorados, transferencias propias ni pagos de resumen; débito y crédito; pendientes incluidos). `GET /insights/stats` con `computeStats`.
+- Bloqueo con huella local (`expo-local-authentication`, flag en SecureStore), pide al abrir y después de 1 minuto en segundo plano.

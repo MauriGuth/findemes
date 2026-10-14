@@ -154,6 +154,11 @@ export default function PlanScreen() {
           </Pressable>
         </View>
 
+        <Row>
+          <Chip label="📊 Tu mes en números" onPress={() => router.push('/(app)/stats')} />
+          <Chip label="🎯 Presupuestos" onPress={() => router.push('/(app)/budgets')} />
+        </Row>
+
         {!s ? <Muted>{summary.isError ? errorMessage(summary.error) : 'Cargando…'}</Muted> : null}
 
         {s ? (

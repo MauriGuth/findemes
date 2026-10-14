@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 
 import { CaptureCard } from '@/components/CaptureCard';
+import { Phase5Settings } from '@/components/Phase5Settings';
 import { Button, Card, Chip, Muted, Row, Screen, TextField, Title } from '@/components/ui';
 import { errorMessage, useDeleteMe, useMe, useUpdateMe } from '@/lib/hooks';
 import {
@@ -175,6 +176,8 @@ export default function SettingsScreen() {
           ) : null}
           <Muted>La hora es aproximada: Android puede correrla unos minutos.</Muted>
         </Card>
+
+        <Phase5Settings />
 
         <CaptureCard />
 

@@ -9,6 +9,7 @@ import {
   setTokensRotatedHandler,
   type Tokens,
 } from './auth-tokens';
+import { setCurrentPayday } from './format';
 import { queryClient } from './query-client';
 import { clearStoredTokens, loadStoredSession, storeDeviceId, storeTokens } from './secure-store';
 
@@ -42,6 +43,7 @@ export const useSession = create<SessionState>((set, get) => ({
     const tokens: Tokens = { accessToken: session.accessToken, refreshToken: session.refreshToken };
     setTokens(tokens);
     await Promise.all([storeTokens(tokens), storeDeviceId(session.deviceId)]);
+    setCurrentPayday(session.user.payday);
     set({ status: 'signedIn', user: session.user, deviceId: session.deviceId });
   },
 
@@ -67,7 +69,10 @@ export const useSession = create<SessionState>((set, get) => ({
     set({ status: 'signedOut', user: null });
   },
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    setCurrentPayday(user.payday);
+    set({ user });
+  },
 }));
 
 setSessionLostHandler(() => {

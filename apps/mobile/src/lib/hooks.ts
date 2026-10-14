@@ -1,4 +1,7 @@
 import {
+  type Budget,
+  type Stats,
+  type UpsertBudgetInput,
   type ChatChannel,
   type ChatLink,
   type EntryDraft,
@@ -47,6 +50,8 @@ export const keys = {
   receipts: ['receipts'] as const,
   receipt: (id: string) => ['receipt', id] as const,
   chats: ['chats'] as const,
+  budgets: (month: MonthKey) => ['budgets', month] as const,
+  stats: (month: MonthKey) => ['stats', month] as const,
 };
 
 /** Everything money-related depends on everything else: invalidate broadly, it is cheap. */
@@ -61,6 +66,8 @@ export function useInvalidateMoney() {
       qc.invalidateQueries({ queryKey: ['commitments'] }),
       qc.invalidateQueries({ queryKey: ['bills'] }),
       qc.invalidateQueries({ queryKey: ['bill-candidates'] }),
+      qc.invalidateQueries({ queryKey: ['budgets'] }),
+      qc.invalidateQueries({ queryKey: ['stats'] }),
     ]);
 }
 
@@ -166,6 +173,26 @@ export function useRotateInbound() {
   return useMutation({
     mutationFn: () => apiPost<InboundAddress>('/me/inbound/rotate'),
     onSuccess: (data) => qc.setQueryData(keys.inbound, data),
+  });
+}
+
+/** Budgets with what was spent this period (Phase 5). */
+export function useBudgets(month: MonthKey = currentMonthKey()) {
+  return useQuery({
+    queryKey: keys.budgets(month),
+    queryFn: async () => (await apiGet<{ items: Budget[] }>(`/budgets?month=${month}`)).items,
+  });
+}
+
+export const useUpsertBudget = () =>
+  useMoneyMutation((input: UpsertBudgetInput) => apiPut<Budget>('/budgets', input));
+export const useDeleteBudget = () =>
+  useMoneyMutation((id: string) => apiDelete<void>(`/budgets/${id}`));
+
+export function useStats(month: MonthKey = currentMonthKey()) {
+  return useQuery({
+    queryKey: keys.stats(month),
+    queryFn: () => apiGet<Stats>(`/insights/stats?month=${month}`),
   });
 }
 
