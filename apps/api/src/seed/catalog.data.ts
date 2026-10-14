@@ -13,10 +13,9 @@ export interface SourceSeed {
 }
 
 /**
- * Banks and wallets we plan to read. Package names verified 2026-09-26 against the
- * Play Store listing Mauricio sent (title and developer match the bank). Only the
- * personal-banking app of each bank: business apps (BBVA Empresas, Galicia Office)
- * would mix company money into the personal month.
+ * Banks and wallets we plan to read. Package names verified against the Play Store
+ * listing (title and developer match the bank) and confirmed by Mauricio. Each app is its
+ * own source, business apps included: users with a company use them (ADR 011).
  */
 export const SOURCES: readonly SourceSeed[] = [
   {
@@ -31,7 +30,12 @@ export const SOURCES: readonly SourceSeed[] = [
   { slug: 'modo', name: 'MODO', kind: 'WALLET' },
   { slug: 'personal-pay', name: 'Personal Pay', kind: 'WALLET' },
   { slug: 'lemon', name: 'Lemon', kind: 'WALLET' },
-  { slug: 'galicia', name: 'Galicia', kind: 'BANK' },
+  {
+    slug: 'galicia',
+    name: 'Galicia',
+    kind: 'BANK',
+    packageName: 'com.mosync.app_Banco_Galicia',
+  },
   {
     slug: 'santander',
     name: 'Santander',
@@ -42,9 +46,28 @@ export const SOURCES: readonly SourceSeed[] = [
   { slug: 'macro', name: 'Macro', kind: 'BANK' },
   { slug: 'bna', name: 'BNA+', kind: 'BANK' },
   { slug: 'cuenta-dni', name: 'Cuenta DNI', kind: 'WALLET' },
-  { slug: 'bpn', name: 'BPN', kind: 'BANK' },
+  { slug: 'bpn', name: 'BPN', kind: 'BANK', packageName: 'com.poincenot.bpn.mobile' },
   { slug: 'icbc', name: 'ICBC', kind: 'BANK' },
   { slug: 'prex', name: 'Prex', kind: 'WALLET', packageName: 'air.PrexArgentina' },
+  {
+    slug: 'galicia-empresas',
+    name: 'Galicia Empresas',
+    kind: 'BANK',
+    packageName: 'com.galicia.otp',
+  },
+  {
+    slug: 'bbva-empresas',
+    name: 'BBVA Empresas',
+    kind: 'BANK',
+    packageName: 'com.bbva.GEMA.global',
+  },
+  {
+    slug: 'bpn-home-banking',
+    name: 'BPN Home Banking',
+    kind: 'BANK',
+    packageName: 'com.redlink.android_hb3.bpn',
+  },
+  { slug: 'bpn-pagos', name: 'BPN Pagos', kind: 'BANK', packageName: 'com.bancoNeuquen.mpos' },
 ];
 
 export interface CategorySeed {

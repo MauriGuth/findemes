@@ -21,7 +21,7 @@ describe('catalog (e2e)', () => {
   it('seeds idempotently', async () => {
     const first = await seedCatalog(ctx.prisma);
     const second = await seedCatalog(ctx.prisma);
-    expect(first).toEqual({ sources: 16, categories: 16, templates: 0 });
+    expect(first).toEqual({ sources: 20, categories: 16, templates: 0 });
     expect(second).toEqual(first);
   });
 
@@ -66,7 +66,7 @@ describe('catalog (e2e)', () => {
       .get('/catalog/sources')
       .set(session.auth)
       .expect(200);
-    expect(response.body).toHaveLength(16);
+    expect(response.body).toHaveLength(20);
     expect(response.body[0]).toEqual({
       id: expect.any(String),
       slug: expect.any(String),
