@@ -198,3 +198,22 @@ Todo lo que no depende de muestras está hecho y verificado localmente: módulo 
 - App del día a día (ADR 012): APK `preview` + actualizaciones OTA (`expo-updates`, runtime por fingerprint). Después de cada CI verde en `main`, el workflow `Mobile OTA update` publica al canal `preview`; los cambios nativos se buildean con el workflow manual `Mobile build`. Ambos necesitan el secret `EXPO_TOKEN`. La actualización se descarga al abrir la app y se aplica en la apertura siguiente.
 - Expo publica parches del SDK 57 seguido y `expo-doctor` pone rojo el job mobile del CI aunque el cambio no toque mobile: `npx expo install --fix` en `apps/mobile`. Si después marca una dependencia transitiva vieja (pasó con `@expo/metro-runtime`), se declara directa con `npx expo install <paquete>`.
 - Nunca inventar un fixture de banco: los tests del motor usan una fuente sintética y los e2e templates `E2E …`; `__fixtures__/<source>/` es solo para muestras reales anonimizadas.
+
+## Fase 3 — estado (2026-10-14)
+
+Correo y vencimientos implementados y verificados localmente (shared 171 tests, API unit + 62 e2e, lint/typecheck/bundle). ADR 013 (Postmark, pipeline de correo, facturas) y enmienda a ADR 007. Checklist manual en `docs/testing/phase-3-manual.md`. Falta: que Mauricio cree la cuenta/servidor de Postmark y cargue las variables en Railway, y un mes de correos reales (DoD).
+
+**Lo que quedó fijo** (cambiarlo requiere ADR):
+
+- Dirección por usuario `hash+<inboundToken>@inbound.postmarkapp.com` (`User.inboundToken`, 12 caracteres, rotable desde la app). Sin `INBOUND_EMAIL_ADDRESS` la función dice "todavía no está disponible".
+- Webhook `POST /inbound/postmark`: basic auth, sin throttling, JSON de hasta 40 MB solo en `/inbound/*` (100 kB en el resto; `app.useBodyParser` registra los dos parsers en `configureApp`). Destinatario desconocido → 200. Idempotente por `MessageID`.
+- El webhook guarda (RawEvent `EMAIL` cifrado, 30 días, hasta 3 PDF de 8 MB) y responde; Claude lee en segundo plano (`EmailIngestService.drain()` en tests y al apagar). FAILED se reintenta a los 5 min y RECEIVED colgados a los 10, en el próximo correo del usuario. Tope `EMAIL_LLM_DAILY_CAP` aparte del de notificaciones.
+- Confirmación de reenvío de Gmail (`@google.com`): se guarda sin Claude y la app muestra código y link. Códigos de seguridad: se descartan sin guardar.
+- Movimientos por correo: siempre PENDING, sin source; el mismo pago por notificación y correo en 24 h → `crossChannelPairs` en Pendientes.
+- `Bill`: `PENDING` (detectada) y `UNPAID` cuentan como deuda; `PAID` solo vía `POST /bills/:id/payments` (vincula un movimiento o crea uno; salda el mes del compromiso o es pago de resumen). Fórmula en la enmienda de ADR 007.
+- Avisos de vencimiento: locales, el día anterior y el mismo día a las 10:00, con el mismo switch que el recordatorio diario (`buildBillReminders`).
+
+**Trampas conocidas**:
+
+- `prisma migrate diff ... > migration.sql` puede capturar el banner de dotenv ("◇ injected env") si se corre con la base caída o antes de que cargue la config: revisar la primera línea del archivo antes de commitear. Si una migración local queda fallida: `prisma migrate resolve --rolled-back <nombre>` y `migrate deploy`.
+- Los e2e de correo usan `INBOUND_*` de `test/setup-env.ts` y el `FakeLlmProvider.respondToEmailWith`; esperar `EmailIngestService.drain()` antes de mirar la base.

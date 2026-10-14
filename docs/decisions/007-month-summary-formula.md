@@ -31,3 +31,12 @@ Rules:
 - The API's `InsightsService` runs the function twice (M−1 for `previousStatement`, then M) and never computes money itself.
 - `statement.next` is the calendar month's credit consumption: real card closing dates are a phase 5 concern.
 - Changing any rule means changing a golden test first.
+
+## Amendment (2026-10-14, ADR 013): bills
+
+`remaining` also subtracts **unpaid bills** (`PENDING` or `UNPAID`, ARS) due in the month or overdue up to 60 days. Two exceptions keep everything counted once:
+
+- A bill linked to a commitment that applies in the month sets that commitment's amount for the month instead of being added on top.
+- A `CARD_STATEMENT` bill due in the month replaces the estimated previous statement (`statement.previous.source = 'bill'`); its payment is still a statement payment.
+
+A `PAID` bill whose payment was deleted or ignored is owed again.
