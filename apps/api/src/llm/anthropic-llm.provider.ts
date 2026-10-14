@@ -4,9 +4,14 @@ import { BillKind, Currency, PaymentMethod, TransactionDirection } from '@findem
 import { z } from 'zod';
 
 import { EMAIL_OUTPUT_SCHEMA, EMAIL_SYSTEM_PROMPT } from './email-prompt.js';
+import { ENTRY_SYSTEM_PROMPT, entryOutputSchema } from './entry-prompt.js';
 import {
   type EmailExtraction,
   type EmailExtractionInput,
+  type EntryParse,
+  type EntryParseInput,
+  type ReceiptExtraction,
+  type ReceiptExtractionInput,
   LlmRejectedError,
   type LlmProvider,
   type LlmResult,
@@ -14,6 +19,7 @@ import {
   type NotificationExtractionInput,
 } from './llm.provider.js';
 import { NOTIFICATION_OUTPUT_SCHEMA, NOTIFICATION_SYSTEM_PROMPT } from './notification-prompt.js';
+import { RECEIPT_SYSTEM_PROMPT, receiptOutputSchema } from './receipt-prompt.js';
 
 const ExtractionSchema = z.object({
   isFinancial: z.boolean(),
@@ -57,6 +63,39 @@ const EmailSchema = z.object({
     .nullable(),
 });
 
+const ReceiptSchema = z.object({
+  isReceipt: z.boolean(),
+  merchant: z.string().nullable(),
+  cuit: z.string().nullable(),
+  issuedAt: z.string().nullable(),
+  total: z.string().nullable(),
+  currency: Currency,
+  paymentMethodHint: PaymentMethod.nullable(),
+  items: z.array(
+    z.object({
+      name: z.string(),
+      qty: z.string(),
+      unitPrice: z.string().nullable(),
+      total: z.string(),
+      category: z.string(),
+    }),
+  ),
+});
+
+const EntrySchema = z.object({
+  entries: z.array(
+    z.object({
+      amount: z.string(),
+      currency: Currency,
+      direction: TransactionDirection,
+      method: PaymentMethod,
+      merchant: z.string().nullable(),
+      category: z.string(),
+      date: z.string().nullable(),
+    }),
+  ),
+});
+
 /** The model declined or answered something that does not fit the schema. */
 export class LlmOutputError extends Error {
   override readonly name = 'LlmOutputError';
@@ -77,6 +116,8 @@ export class AnthropicLlmProvider implements LlmProvider {
     timeoutMs: number,
     /** Emails carry PDFs and take longer than notifications. */
     private readonly emailTimeoutMs: number = timeoutMs,
+    /** Photos too. */
+    private readonly receiptTimeoutMs: number = timeoutMs,
     /** Tests only: intercept HTTP. */
     fetchImpl?: typeof fetch,
   ) {
@@ -127,6 +168,34 @@ export class AnthropicLlmProvider implements LlmProvider {
     );
   }
 
+  async extractReceipt(input: ReceiptExtractionInput): Promise<LlmResult<ReceiptExtraction>> {
+    return this.structured(
+      RECEIPT_SYSTEM_PROMPT,
+      receiptOutputSchema(input.categorySlugs),
+      'medium',
+      [
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: input.mediaType, data: input.imageBase64 },
+        },
+        { type: 'text', text: 'Read this ticket.' },
+      ],
+      ReceiptSchema,
+      this.receiptTimeoutMs,
+      4096,
+    );
+  }
+
+  async parseEntry(input: EntryParseInput): Promise<LlmResult<EntryParse>> {
+    return this.structured(
+      ENTRY_SYSTEM_PROMPT,
+      entryOutputSchema(input.categorySlugs),
+      'low',
+      `Today: ${input.today}\n<message>\n${input.text}\n</message>`,
+      EntrySchema,
+    );
+  }
+
   private async structured<T>(
     system: string,
     schema: Record<string, unknown>,
@@ -134,11 +203,12 @@ export class AnthropicLlmProvider implements LlmProvider {
     content: string | BetaContentBlockParam[],
     parser: z.ZodType<T>,
     timeoutMs?: number,
+    maxTokens = 2048,
   ): Promise<LlmResult<T>> {
     const request = this.client.beta.messages.create(
       {
         model: this.model,
-        max_tokens: 2048,
+        max_tokens: maxTokens,
         system,
         output_config: { effort, format: { type: 'json_schema', schema } },
         ...(this.supportsFallbacks

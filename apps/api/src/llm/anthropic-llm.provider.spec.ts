@@ -60,6 +60,7 @@ describe('AnthropicLlmProvider', () => {
       'claude-opus-5',
       5000,
       5000,
+      5000,
       fakeFetch(message(JSON.stringify(answer)), captured),
     );
     const result = await provider.extractNotification(input);
@@ -88,6 +89,7 @@ describe('AnthropicLlmProvider', () => {
       'claude-sonnet-5',
       5000,
       5000,
+      5000,
       fakeFetch(message(JSON.stringify(answer)), captured),
     );
     await provider.extractNotification(input);
@@ -100,12 +102,14 @@ describe('AnthropicLlmProvider', () => {
       'claude-opus-5',
       5000,
       5000,
+      5000,
       fakeFetch(message('', 'refusal'), []),
     );
     await expect(refusal.extractNotification(input)).rejects.toBeInstanceOf(LlmOutputError);
     const garbage = new AnthropicLlmProvider(
       'k',
       'claude-opus-5',
+      5000,
       5000,
       5000,
       fakeFetch(message('{"isFinancial": "maybe"}'), []),
@@ -132,6 +136,7 @@ describe('AnthropicLlmProvider', () => {
       'claude-opus-5',
       5000,
       60000,
+      5000,
       fakeFetch(message(JSON.stringify(reply)), captured),
     );
     // SYNTHETIC email; the PDF bytes are a placeholder.
@@ -150,5 +155,87 @@ describe('AnthropicLlmProvider', () => {
     expect(body.output_config.effort).toBe('medium');
     expect(body.messages[0]?.content.map((block) => block.type)).toEqual(['document', 'text']);
     expect(body.messages[0]?.content[0]?.source?.media_type).toBe('application/pdf');
+  });
+
+  it('reads a ticket photo as an image block with the category slugs in the schema', async () => {
+    const captured: Captured[] = [];
+    // SYNTHETIC ticket answer; the image bytes are a placeholder.
+    const reply = {
+      isReceipt: true,
+      merchant: 'Almacén de prueba',
+      cuit: null,
+      issuedAt: '2026-10-10T15:00',
+      total: '1500.00',
+      currency: 'ARS',
+      paymentMethodHint: null,
+      items: [
+        { name: 'Yerba', qty: '1', unitPrice: null, total: '1500.00', category: 'supermercado' },
+      ],
+    };
+    const provider = new AnthropicLlmProvider(
+      'k',
+      'claude-opus-5',
+      5000,
+      5000,
+      5000,
+      fakeFetch(message(JSON.stringify(reply)), captured),
+    );
+    const result = await provider.extractReceipt({
+      imageBase64: '/9j/4AAQ',
+      mediaType: 'image/jpeg',
+      categorySlugs: ['supermercado', 'otros'],
+    });
+    expect(result.value).toEqual(reply);
+    const body = captured[0]?.body as {
+      output_config: {
+        format: {
+          schema: {
+            properties: { items: { items: { properties: { category: { enum: string[] } } } } };
+          };
+        };
+      };
+      messages: { content: { type: string }[] }[];
+    };
+    expect(body.messages[0]?.content.map((block) => block.type)).toEqual(['image', 'text']);
+    expect(
+      body.output_config.format.schema.properties.items.items.properties.category.enum,
+    ).toEqual(['supermercado', 'otros']);
+  });
+
+  it('parses a typed entry with low effort and today in the prompt', async () => {
+    const captured: Captured[] = [];
+    const reply = {
+      entries: [
+        {
+          amount: '8000',
+          currency: 'ARS',
+          direction: 'OUT',
+          method: 'CASH',
+          merchant: 'kiosco',
+          category: 'comida',
+          date: null,
+        },
+      ],
+    };
+    const provider = new AnthropicLlmProvider(
+      'k',
+      'claude-opus-5',
+      5000,
+      5000,
+      5000,
+      fakeFetch(message(JSON.stringify(reply)), captured),
+    );
+    const result = await provider.parseEntry({
+      text: 'gasté 8 lucas en el kiosco',
+      today: '2026-10-14',
+      categorySlugs: ['comida'],
+    });
+    expect(result.value).toEqual(reply);
+    const body = captured[0]?.body as {
+      output_config: { effort: string };
+      messages: { content: string }[];
+    };
+    expect(body.output_config.effort).toBe('low');
+    expect(body.messages[0]?.content).toContain('Today: 2026-10-14');
   });
 });

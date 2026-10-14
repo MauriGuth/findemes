@@ -15,6 +15,7 @@ import {
 
 import { CLOCK, type Clock } from '../common/clock.js';
 import { isoToDate } from '../common/dto.js';
+import { ISO_DATE, llmMoney as money, validDate } from '../common/llm-values.js';
 import { type Env } from '../config/env.schema.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { IngestProcessor } from '../ingest/ingest.processor.js';
@@ -39,24 +40,9 @@ export interface EmailPayload {
 const LLM_CONFIDENCE = 0.7;
 /** A bank email can arrive a day after the payment a manual entry recorded. */
 const EMAIL_MANUAL_WINDOW_MS = 24 * 3_600_000;
-const AMOUNT = /^\d{1,15}(\.\d{1,2})?$/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 /** Claude errors on the same email before it is given up as unrecognized. */
 export const MAX_EMAIL_ATTEMPTS = 3;
-
-/** A real calendar date ("2026-02-29" is not). */
-function validDate(value: string): boolean {
-  if (!ISO_DATE.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-function money(value: string | null | undefined): string | null {
-  if (!value || !AMOUNT.test(value.trim())) return null;
-  const amount = Number(value);
-  return amount > 0 ? new Prisma.Decimal(value.trim()).toFixed(2) : null;
-}
 
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';

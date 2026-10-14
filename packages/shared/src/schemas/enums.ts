@@ -64,6 +64,10 @@ export type BillStatus = z.infer<typeof BillStatus>;
 export const BillOrigin = z.enum(['EMAIL', 'MANUAL']);
 export type BillOrigin = z.infer<typeof BillOrigin>;
 
+/** Chats linked to an account to send tickets and expenses (Phase 4, ADR 014). */
+export const ChatChannel = z.enum(['TELEGRAM', 'WHATSAPP']);
+export type ChatChannel = z.infer<typeof ChatChannel>;
+
 /** Registry used by the Prisma drift test. Keys are the Prisma enum names. */
 export const PRISMA_ENUMS = {
   Currency,
@@ -80,4 +84,5 @@ export const PRISMA_ENUMS = {
   BillKind,
   BillStatus,
   BillOrigin,
+  ChatChannel,
 } as const;

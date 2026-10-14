@@ -108,4 +108,24 @@ describe('validateEnv', () => {
   it('requires the Anthropic key when the provider is forced', () => {
     expect(() => validateEnv({ ...base, LLM_PROVIDER: 'anthropic' })).toThrow(/ANTHROPIC_API_KEY/);
   });
+
+  it('optional integrations are all-or-nothing', () => {
+    expect(validateEnv(base).S3_BUCKET).toBeUndefined();
+    expect(() => validateEnv({ ...base, S3_BUCKET: 'tickets' })).toThrow(/set all or none/);
+    expect(
+      validateEnv({
+        ...base,
+        S3_ENDPOINT: 'https://acc.r2.cloudflarestorage.com',
+        S3_BUCKET: 'tickets',
+        S3_ACCESS_KEY_ID: 'id',
+        S3_SECRET_ACCESS_KEY: 'secret',
+      }).S3_REGION,
+    ).toBe('auto');
+    expect(() => validateEnv({ ...base, TELEGRAM_BOT_TOKEN: '123456:' + 'a'.repeat(30) })).toThrow(
+      /TELEGRAM_BOT_USERNAME/,
+    );
+    expect(() => validateEnv({ ...base, WHATSAPP_VERIFY_TOKEN: 'v'.repeat(20) })).toThrow(
+      /WHATSAPP_ACCESS_TOKEN/,
+    );
+  });
 });

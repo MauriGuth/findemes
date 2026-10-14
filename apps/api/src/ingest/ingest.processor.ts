@@ -13,6 +13,8 @@ import {
   parseNotification,
   type ParserTemplateData,
   parseArs,
+  pickReceiptMatch,
+  RECEIPT_TIME_WINDOW_MS,
   type TemplateFieldMap,
   todayInArt,
 } from '@findemes/shared';
@@ -209,6 +211,12 @@ export class IngestProcessor {
   ): Promise<void> {
     const occurredAt = options.occurredAt ?? raw.postedAt;
     const manualWindowMs = options.manualWindowMs ?? MANUAL_DUPLICATE_WINDOW_MS;
+    if (
+      parsed.direction === 'OUT' &&
+      (await this.mergeIntoReceipt(raw, sourceId, parsed, origin, occurredAt))
+    ) {
+      return;
+    }
     const manualTwin = await this.prisma.transaction.findFirst({
       where: {
         userId: raw.userId,
@@ -273,5 +281,70 @@ export class IngestProcessor {
       await this.finish(raw.id, 'PROCESSED', 'duplicate');
       this.logger.log(`ingest.duplicate event=${raw.id}`);
     }
+  }
+
+  /**
+   * A ticket photographed before the bank's notification created a pending movement
+   * (ADR 014): the notification completes that movement instead of adding a second one.
+   */
+  private async mergeIntoReceipt(
+    raw: { id: string; userId: string },
+    sourceId: string | null,
+    parsed: ParsedNotification,
+    origin: Extract<TransactionOrigin, 'TEMPLATE' | 'LLM'>,
+    occurredAt: Date,
+  ): Promise<boolean> {
+    const amount = new Prisma.Decimal(parsed.amount);
+    const candidates = await this.prisma.transaction.findMany({
+      where: {
+        userId: raw.userId,
+        rawEventId: null,
+        receiptId: { not: null },
+        fingerprint: { startsWith: 'receipt:' },
+        status: 'PENDING',
+        direction: 'OUT',
+        currency: parsed.currency,
+        amount: { gte: amount.sub(1), lte: amount.add(1) },
+        occurredAt: {
+          gte: new Date(occurredAt.getTime() - RECEIPT_TIME_WINDOW_MS),
+          lte: new Date(occurredAt.getTime() + RECEIPT_TIME_WINDOW_MS),
+        },
+      },
+      select: { id: true, amount: true, currency: true, occurredAt: true, merchantRaw: true },
+    });
+    const twin = pickReceiptMatch(
+      { total: parsed.amount, currency: parsed.currency, at: occurredAt.toISOString() },
+      candidates.map((c) => ({
+        ...c,
+        amount: c.amount.toFixed(2),
+        occurredAt: c.occurredAt.toISOString(),
+      })),
+    );
+    if (!twin) return false;
+    const confirmed = parsed.confidence >= AUTO_CONFIRM_CONFIDENCE;
+    await this.prisma.$transaction([
+      this.prisma.transaction.update({
+        where: { id: twin.id },
+        data: {
+          sourceId,
+          amount,
+          method: parsed.method,
+          occurredAt,
+          origin,
+          rawEventId: raw.id,
+          status: confirmed ? 'CONFIRMED' : 'PENDING',
+          confidence: new Prisma.Decimal(parsed.confidence.toFixed(2)),
+          ...(twin.merchantRaw === null
+            ? { merchantRaw: parsed.merchantRaw, merchantNorm: parsed.merchantNorm }
+            : {}),
+        },
+      }),
+      this.prisma.rawEvent.update({
+        where: { id: raw.id },
+        data: { status: 'PROCESSED', error: null, processedAt: this.clock.now() },
+      }),
+    ]);
+    this.logger.log(`ingest.merged_receipt event=${raw.id} confirmed=${String(confirmed)}`);
+    return true;
   }
 }

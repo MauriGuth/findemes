@@ -2,13 +2,17 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { type UpdateUserInput, type User } from '@findemes/shared';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { toUserDto } from './user.dto.js';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async getMe(userId: string): Promise<User> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -36,10 +40,16 @@ export class UsersService {
       select: { email: true },
     });
     if (!user) throw new NotFoundException();
+    const photos = await this.prisma.receipt.findMany({
+      where: { userId },
+      select: { imageKey: true },
+    });
     await this.prisma.$transaction([
       this.prisma.loginCode.deleteMany({ where: { email: user.email } }),
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
+    // Ticket photos live in the bucket, outside the cascade.
+    for (const photo of photos) await this.storage.delete(photo.imageKey);
     this.logger.log('account.deleted');
   }
 }

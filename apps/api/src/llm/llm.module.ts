@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { type Env } from '../config/env.schema.js';
+import { AssistUsageService } from './assist-usage.service.js';
 import { AnthropicLlmProvider } from './anthropic-llm.provider.js';
 import { FakeLlmProvider } from './fake-llm.provider.js';
 import { LLM_PROVIDER, type LlmProvider } from './llm.provider.js';
@@ -9,6 +10,7 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.provider.js';
 @Global()
 @Module({
   providers: [
+    AssistUsageService,
     {
       provide: LLM_PROVIDER,
       inject: [ConfigService],
@@ -20,6 +22,7 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.provider.js';
               config.get('LLM_MODEL', { infer: true }),
               config.get('LLM_TIMEOUT_MS', { infer: true }),
               config.get('EMAIL_LLM_TIMEOUT_MS', { infer: true }),
+              config.get('RECEIPT_LLM_TIMEOUT_MS', { infer: true }),
             );
           case 'fake':
             return new FakeLlmProvider();
@@ -29,6 +32,6 @@ import { LLM_PROVIDER, type LlmProvider } from './llm.provider.js';
       },
     },
   ],
-  exports: [LLM_PROVIDER],
+  exports: [LLM_PROVIDER, AssistUsageService],
 })
 export class LlmModule {}

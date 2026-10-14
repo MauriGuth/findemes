@@ -90,6 +90,45 @@ export const EnvSchema = z.object({
   EMAIL_LLM_DAILY_CAP: z.coerce.number().int().min(0).default(40),
   /** Email reading is slower (PDFs): its own timeout. */
   EMAIL_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(90_000),
+
+  // ── receipts and AI entries (Phase 4, ADR 014) ──
+  /**
+   * S3-compatible bucket for ticket photos (Cloudflare R2: https://<account>.r2.cloudflarestorage.com,
+   * region "auto"). Optional: without it, tickets answer "not available".
+   */
+  S3_ENDPOINT: z.url().optional(),
+  S3_REGION: z.string().min(1).default('auto'),
+  S3_BUCKET: z.string().min(3).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  /** Claude calls per user per day for tickets and typed or chat entries (Argentina). */
+  ASSIST_LLM_DAILY_CAP: z.coerce.number().int().min(0).default(40),
+  /** Reading a photo takes longer than a notification. */
+  RECEIPT_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(60_000),
+
+  // ── chats (Phase 4, ADR 014) ──
+  /** Public https base URL of this API, used to register chat webhooks. */
+  API_PUBLIC_URL: z.url().optional(),
+  /** From @BotFather. All three or none. */
+  TELEGRAM_BOT_TOKEN: z.string().min(20).optional(),
+  TELEGRAM_BOT_USERNAME: z.string().min(3).optional(),
+  /** Sent back by Telegram in X-Telegram-Bot-Api-Secret-Token: `openssl rand -hex 32`. */
+  TELEGRAM_WEBHOOK_SECRET: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{32,256}$/, 'must be 32+ characters of A-Z, a-z, 0-9, _ or -')
+    .optional(),
+  /** WhatsApp Business Cloud API (Meta). All five or none. */
+  WHATSAPP_ACCESS_TOKEN: z.string().min(20).optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().regex(/^\d+$/).optional(),
+  /** App secret: verifies X-Hub-Signature-256 on every webhook. */
+  WHATSAPP_APP_SECRET: z.string().min(16).optional(),
+  /** Any random string, repeated in Meta's webhook setup (hub.verify_token). */
+  WHATSAPP_VERIFY_TOKEN: z.string().min(16).optional(),
+  /** The number as users see it, digits only with country code: "5492991234567". */
+  WHATSAPP_DISPLAY_NUMBER: z
+    .string()
+    .regex(/^\d{8,15}$/)
+    .optional(),
 });
 
 type ParsedEnv = z.output<typeof EnvSchema>;
@@ -143,6 +182,30 @@ export function validateEnv(config: Record<string, unknown>): Env {
   }
   if (env.INBOUND_EMAIL_ADDRESS?.split('@')[0]?.includes('+')) {
     problems.push('INBOUND_EMAIL_ADDRESS must be the base address, without "+"');
+  }
+  const groups: [string, unknown[]][] = [
+    [
+      'S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY',
+      [env.S3_ENDPOINT, env.S3_BUCKET, env.S3_ACCESS_KEY_ID, env.S3_SECRET_ACCESS_KEY],
+    ],
+    [
+      'TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET',
+      [env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_BOT_USERNAME, env.TELEGRAM_WEBHOOK_SECRET],
+    ],
+    [
+      'WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN and WHATSAPP_DISPLAY_NUMBER',
+      [
+        env.WHATSAPP_ACCESS_TOKEN,
+        env.WHATSAPP_PHONE_NUMBER_ID,
+        env.WHATSAPP_APP_SECRET,
+        env.WHATSAPP_VERIFY_TOKEN,
+        env.WHATSAPP_DISPLAY_NUMBER,
+      ],
+    ],
+  ];
+  for (const [names, values] of groups) {
+    const set = values.filter((value) => value !== undefined).length;
+    if (set > 0 && set < values.length) problems.push(`${names} go together: set all or none`);
   }
   if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) {
     problems.push('ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic');

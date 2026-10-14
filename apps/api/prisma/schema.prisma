@@ -117,19 +117,28 @@ enum BillOrigin {
   MANUAL
 }
 
+/// Chats linked to an account (Phase 4, ADR 014).
+enum ChatChannel {
+  TELEGRAM
+  WHATSAPP
+}
+
 // ─── Identity ────────────────────────────────────────────────────────────────
 
 model User {
-  id                String   @id @default(uuid(7))
-  email             String   @unique
-  name              String?
-  timeZone          String   @default("America/Argentina/Buenos_Aires")
+  id                    String    @id @default(uuid(7))
+  email                 String    @unique
+  name                  String?
+  timeZone              String    @default("America/Argentina/Buenos_Aires")
   /// HH:MM in Argentina time; null = daily reminder off.
-  dailyReminderTime String?  @default("20:00")
+  dailyReminderTime     String?   @default("20:00")
   /// Random part of the forwarding address (`local+token@domain`, ADR 013); rotated on demand.
-  inboundToken      String?  @unique
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
+  inboundToken          String?   @unique
+  /// Short code the user sends to the Findemes chat to link it (ADR 014); single use.
+  chatLinkCode          String?   @unique
+  chatLinkCodeExpiresAt DateTime? @db.Timestamptz
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @db.Timestamptz
 
   devices       Device[]
   refreshTokens RefreshToken[]
@@ -141,6 +150,22 @@ model User {
   commitments   Commitment[]
   llmUsage      LlmUsage[]
   bills         Bill[]
+  chatLinks     ChatLink[]
+}
+
+/// A Telegram chat or WhatsApp number that can send tickets and expenses to the account.
+model ChatLink {
+  id         String      @id @default(uuid(7))
+  userId     String
+  channel    ChatChannel
+  /// Telegram chat id or WhatsApp phone (wa_id). Identifies the sender; never shown in logs.
+  externalId String
+  createdAt  DateTime    @default(now()) @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, externalId])
+  @@unique([userId, channel])
 }
 
 model Device {

@@ -74,6 +74,52 @@ export interface EmailExtraction {
   } | null;
 }
 
+export interface ReceiptExtractionInput {
+  /** JPEG or PNG bytes, base64. */
+  imageBase64: string;
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+  /** Category slugs Claude may assign to items. */
+  categorySlugs: readonly string[];
+}
+
+/** What Claude reads from a ticket photo (ADR 014). Values are validated by the caller. */
+export interface ReceiptExtraction {
+  isReceipt: boolean;
+  merchant: string | null;
+  cuit: string | null;
+  issuedAt: string | null;
+  total: string | null;
+  currency: Currency;
+  paymentMethodHint: PaymentMethod | null;
+  items: {
+    name: string;
+    qty: string;
+    unitPrice: string | null;
+    total: string;
+    category: string;
+  }[];
+}
+
+export interface EntryParseInput {
+  /** What the user typed or sent to the chat; untrusted, never logged. */
+  text: string;
+  /** "YYYY-MM-DD" in Argentina, to resolve "ayer". */
+  today: string;
+  categorySlugs: readonly string[];
+}
+
+export interface EntryParse {
+  entries: {
+    amount: string;
+    currency: Currency;
+    direction: TransactionDirection;
+    method: PaymentMethod;
+    merchant: string | null;
+    category: string;
+    date: string | null;
+  }[];
+}
+
 /** Behind an interface so tests use a fake and the model can change with LLM_MODEL (ADR 010). */
 export interface LlmProvider {
   readonly name: string;
@@ -81,6 +127,8 @@ export interface LlmProvider {
     input: NotificationExtractionInput,
   ): Promise<LlmResult<NotificationExtraction>>;
   extractEmail(input: EmailExtractionInput): Promise<LlmResult<EmailExtraction>>;
+  extractReceipt(input: ReceiptExtractionInput): Promise<LlmResult<ReceiptExtraction>>;
+  parseEntry(input: EntryParseInput): Promise<LlmResult<EntryParse>>;
 }
 
 /**
