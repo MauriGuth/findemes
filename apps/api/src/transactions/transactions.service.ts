@@ -2,13 +2,16 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  addMoney,
   compareMoney,
   type CreateTransaction,
   type ListTransactionsQuery,
   monthKey,
   type MonthKey,
   monthRange,
+  nextMonthKey,
   type PayCommitmentInput,
+  subtractMoney,
   sumMoney,
   toArtCalendarDate,
   todayInArt,
@@ -228,13 +231,25 @@ export class TransactionsService {
       },
       select: { amount: true },
     });
+    // A bill linked to the commitment for that month sets its price (ADR 013).
+    const bill = await this.prisma.bill.findFirst({
+      where: {
+        userId,
+        commitmentId,
+        kind: { not: 'CARD_STATEMENT' },
+        status: { in: ['PENDING', 'UNPAID', 'PAID'] },
+        dueOn: { gte: monthKeyToDate(month), lt: monthKeyToDate(nextMonthKey(month)) },
+      },
+      include: { paidTransaction: { select: { status: true } } },
+    });
+    const price = bill ? toMoney(bill.amount) : toMoney(commitment.amount);
     const paidAmount = sumMoney(paid.map((p) => toMoney(p.amount)));
-    if (compareMoney(paidAmount, toMoney(commitment.amount)) >= 0) {
+    if (compareMoney(paidAmount, price) >= 0) {
       throw new ConflictException({ message: 'Ese compromiso ya figura pagado ese mes.' });
     }
 
-    return this.create(userId, {
-      amount: input.amount ?? toMoney(commitment.amount),
+    const created = await this.create(userId, {
+      amount: input.amount ?? subtractMoney(price, paidAmount),
       currency: 'ARS',
       direction: 'OUT',
       method: input.method ?? commitment.method,
@@ -252,6 +267,20 @@ export class TransactionsService {
       isStatementPayment: false,
       markAsSalary: false,
     });
+
+    // Settled at the bill's price: the bill is paid too, so it stops being owed and reminded.
+    const billOwed =
+      bill &&
+      (bill.status !== 'PAID' ||
+        !bill.paidTransaction ||
+        bill.paidTransaction.status === 'IGNORED');
+    if (bill && billOwed && compareMoney(addMoney(paidAmount, created.amount), price) >= 0) {
+      await this.prisma.bill.update({
+        where: { id: bill.id },
+        data: { status: 'PAID', paidTransactionId: created.id },
+      });
+    }
+    return created;
   }
 
   /** Salary linking through PUT /plans/:month reuses the same eligibility rule. */

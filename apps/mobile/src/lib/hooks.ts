@@ -140,14 +140,14 @@ export function useBillCandidates(id: string) {
   });
 }
 
-/** The forwarding address; refetched every 15 s until the first email or Gmail's code. */
+/** The forwarding address; refetched every 15 s until Gmail's code for it arrives. */
 export function useInboundAddress() {
   return useQuery({
     queryKey: keys.inbound,
     queryFn: () => apiGet<InboundAddress>('/me/inbound'),
     refetchInterval: (query) => {
       const data = query.state.data;
-      return data?.address && !data.gmailConfirmation && !data.lastEmailAt ? 15_000 : false;
+      return data?.address && !data.gmailConfirmation ? 15_000 : false;
     },
   });
 }

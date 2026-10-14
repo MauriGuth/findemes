@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { nextMonthKey } from '@findemes/shared';
+
 import { currentMonthKey } from '@/lib/format';
 import { useBills, useMe, useSummary } from '@/lib/hooks';
 import { syncDailyReminder } from '@/lib/reminder';
@@ -14,12 +16,14 @@ import { useSession } from '@/lib/session';
 export function ReminderSync() {
   const summary = useSummary(currentMonthKey());
   const bills = useBills(currentMonthKey());
+  // Bills due early next month fall inside the 14-day reminder window too.
+  const nextBills = useBills(nextMonthKey(currentMonthKey()));
   const me = useMe();
   const time = useSession((s) => s.user?.dailyReminderTime ?? me.data?.dailyReminderTime ?? null);
 
   useEffect(() => {
-    void syncDailyReminder(summary.data, time, bills.data ?? []);
-  }, [summary.data, time, bills.data]);
+    void syncDailyReminder(summary.data, time, [...(bills.data ?? []), ...(nextBills.data ?? [])]);
+  }, [summary.data, time, bills.data, nextBills.data]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {

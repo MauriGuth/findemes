@@ -33,6 +33,8 @@ export interface SummaryTransactionInput {
   sourceId: string | null;
   /** Channel of the raw event it came from; null for manual movements. */
   capturedVia?: RawEventChannel | null;
+  /** Due date of the card statement bill this movement paid, when it paid one. */
+  paysStatementDueOn?: IsoDate | null;
 }
 
 export interface SummaryBillInput {
@@ -45,6 +47,7 @@ export interface SummaryBillInput {
   /** PAID only while its payment exists and is not ignored (the API checks). */
   status: BillStatus;
   commitmentId: string | null;
+  paidTransactionId?: string | null;
 }
 
 export interface SummaryCommitmentInput {
@@ -79,6 +82,11 @@ export interface MonthSummaryInput {
   transactions: SummaryTransactionInput[];
   /** Bills due this month or overdue up to BILL_OVERDUE_DAYS (ADR 013). Optional for older callers. */
   bills?: SummaryBillInput[];
+  /**
+   * Movements from the last day of the previous month, used only to pair them with this
+   * month's email copies (a bank email can arrive the next day). Never counted.
+   */
+  pairingTransactions?: SummaryTransactionInput[];
 }
 
 export interface BillSummaryItem {

@@ -60,10 +60,22 @@ export async function cancelDailyReminder(): Promise<void> {
  * Replaces every scheduled reminder with the next week computed from a fresh
  * summary. `time` null (reminder off) or no permission → just cancels.
  */
-export async function syncDailyReminder(
+let queue: Promise<void> = Promise.resolve();
+
+/** One sync at a time: two overlapping runs would schedule everything twice. */
+export function syncDailyReminder(
   summary: MonthSummary | undefined,
   time: string | null,
   bills: readonly BillReminderInput[] = [],
+): Promise<void> {
+  queue = queue.then(() => runSync(summary, time, bills)).catch(() => undefined);
+  return queue;
+}
+
+async function runSync(
+  summary: MonthSummary | undefined,
+  time: string | null,
+  bills: readonly BillReminderInput[],
 ): Promise<void> {
   await cancelDailyReminder();
   if (!summary || !time) return;

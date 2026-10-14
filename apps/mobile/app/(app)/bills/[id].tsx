@@ -76,9 +76,12 @@ export default function BillScreen() {
           <Card>
             <Text className="text-base font-semibold text-white">¿Está bien?</Text>
             <Muted>
-              {bill.origin === 'EMAIL'
-                ? 'La leímos de un correo que reenviaste. Ya se resta de lo que te queda.'
-                : 'Ya se resta de lo que te queda.'}
+              {[
+                bill.origin === 'EMAIL' ? 'La leímos de un correo que reenviaste.' : null,
+                bill.currency === 'ARS' ? 'Ya se resta de lo que te queda.' : null,
+              ]
+                .filter(Boolean)
+                .join(' ')}
             </Muted>
             <Row>
               <Chip

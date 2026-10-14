@@ -83,6 +83,14 @@ export interface LlmProvider {
   extractEmail(input: EmailExtractionInput): Promise<LlmResult<EmailExtraction>>;
 }
 
+/**
+ * The provider refused the input for good (an encrypted or broken PDF, a request too
+ * large): retrying cannot help, so the event ends as unrecognized instead of FAILED.
+ */
+export class LlmRejectedError extends Error {
+  override readonly name = 'LlmRejectedError';
+}
+
 /** null when LLM_PROVIDER=none: unmatched notifications stay UNRECOGNIZED. */
 export const LLM_PROVIDER = Symbol('LLM_PROVIDER');
 

@@ -157,4 +157,22 @@ describe('buildBillReminders', () => {
     const later = buildBillReminders(bills, TODAY, new Date('2026-09-21T14:00:00Z'));
     expect(later).toHaveLength(3);
   });
+
+  it('writes dollar bills in dollars', () => {
+    const [entry] = buildBillReminders(
+      [
+        {
+          id: 'u',
+          issuer: 'Nube',
+          amount: '20.00',
+          dueOn: '2026-09-23',
+          status: 'UNPAID',
+          currency: 'USD',
+        },
+      ],
+      TODAY,
+      new Date('2026-09-21T12:00:00Z'),
+    );
+    expect(entry?.body).toBe('US$20. Si ya lo pagaste, marcalo en Tu mes.');
+  });
 });

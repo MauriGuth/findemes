@@ -211,7 +211,9 @@ Correo y vencimientos implementados y verificados localmente (shared 171 tests, 
 - Confirmación de reenvío de Gmail (`@google.com`): se guarda sin Claude y la app muestra código y link. Códigos de seguridad: se descartan sin guardar.
 - Movimientos por correo: siempre PENDING, sin source; el mismo pago por notificación y correo en 24 h → `crossChannelPairs` en Pendientes.
 - `Bill`: `PENDING` (detectada) y `UNPAID` cuentan como deuda; `PAID` solo vía `POST /bills/:id/payments` (vincula un movimiento o crea uno; salda el mes del compromiso o es pago de resumen). Fórmula en la enmienda de ADR 007.
-- Avisos de vencimiento: locales, el día anterior y el mismo día a las 10:00, con el mismo switch que el recordatorio diario (`buildBillReminders`).
+- Avisos de vencimiento: locales, el día anterior y el mismo día a las 10:00, con el mismo switch que el recordatorio diario (`buildBillReminders`, facturas del mes y del siguiente; `syncDailyReminder` serializado).
+- Topes de LLM separados por `purpose` (`notification_fallback` / `email`). Correos: máximo 3 errores de Claude por correo y reintentos solo de los últimos 3 días; un 400/413/422 del proveedor (`LlmRejectedError`) es UNRECOGNIZED de una.
+- El "Pagué" de un compromiso con factura del mes cobra el precio de la factura y la marca pagada. Un resumen pagado antes de su mes cuenta como pagado en su mes (`paysStatementDueOn`). Las parejas notificación/correo miran también las últimas 24 h del mes anterior (`pairingTransactions`).
 
 **Trampas conocidas**:
 

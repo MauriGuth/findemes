@@ -59,9 +59,14 @@ export class InsightsService {
       transactions: txPrev,
     });
 
+    const pairingTransactions = txPrev.filter(
+      (t) => new Date(t.occurredAt).getTime() >= monthRange(month).start.getTime() - 86_400_000,
+    );
+
     return computeMonthSummary({
       month,
       today,
+      pairingTransactions,
       plan: planM,
       previousPlan: planPrev
         ? { expectedIncome: planPrev.expectedIncome, salaryAmount: planPrev.salary?.amount ?? null }
@@ -101,6 +106,7 @@ export class InsightsService {
           ? 'UNPAID'
           : b.status,
       commitmentId: b.commitmentId,
+      paidTransactionId: b.paidTransactionId,
     }));
   }
 
@@ -155,6 +161,7 @@ export class InsightsService {
       include: {
         salaryOfPlan: { select: { id: true } },
         rawEvent: { select: { channel: true } },
+        paidBill: { select: { kind: true, dueOn: true } },
       },
     });
     return rows.map((t) => ({
@@ -173,6 +180,8 @@ export class InsightsService {
       origin: t.origin,
       sourceId: t.sourceId,
       capturedVia: t.rawEvent?.channel ?? null,
+      paysStatementDueOn:
+        t.paidBill?.kind === 'CARD_STATEMENT' ? dateToIso(t.paidBill.dueOn) : null,
     }));
   }
 }

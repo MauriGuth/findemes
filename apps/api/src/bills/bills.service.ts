@@ -37,7 +37,20 @@ import { TransactionsService } from '../transactions/transactions.service.js';
 /** Payments this far before the due date can be the one that paid it. */
 const CANDIDATE_DAYS = 45;
 
-export function toBillDto(row: BillRow): Bill {
+/**
+ * A PAID bill whose payment was deleted or ignored is owed again: the API reports it as
+ * UNPAID everywhere, like the summary does.
+ */
+export function effectiveStatus(
+  row: Pick<BillRow, 'status'>,
+  payment: { status: string } | null | undefined,
+): BillRow['status'] {
+  return row.status === 'PAID' && (!payment || payment.status === 'IGNORED')
+    ? 'UNPAID'
+    : row.status;
+}
+
+export function toBillDto(row: BillRow, payment?: { status: string } | null): Bill {
   return {
     id: row.id,
     kind: row.kind,
@@ -47,7 +60,7 @@ export function toBillDto(row: BillRow): Bill {
     currency: row.currency,
     dueOn: dateToIso(row.dueOn),
     periodMonth: row.periodMonth ? dateToMonthKey(row.periodMonth) : null,
-    status: row.status,
+    status: payment === undefined ? row.status : effectiveStatus(row, payment),
     origin: row.origin,
     commitmentId: row.commitmentId,
     paidTransactionId: row.paidTransactionId,
@@ -107,8 +120,9 @@ export class BillsService {
         ],
       },
       orderBy: [{ dueOn: 'asc' }, { createdAt: 'asc' }],
+      include: { paidTransaction: { select: { status: true } } },
     });
-    return rows.map(toBillDto);
+    return rows.map((row) => toBillDto(row, row.paidTransaction));
   }
 
   async create(userId: string, input: CreateBillInput): Promise<Bill> {
@@ -194,6 +208,18 @@ export class BillsService {
         status: { not: 'IGNORED' },
         isOwnTransfer: false,
         paidBill: null,
+        isStatementPayment: false,
+        OR: [
+          { commitmentId: null },
+          ...(bill.commitmentId && bill.kind !== 'CARD_STATEMENT'
+            ? [
+                {
+                  commitmentId: bill.commitmentId,
+                  commitmentMonth: isoToDate(`${monthKeyOfIso(dateToIso(bill.dueOn))}-01`),
+                },
+              ]
+            : []),
+        ],
         ...(bill.kind === 'CARD_STATEMENT' ? { method: { not: 'CREDIT' } } : {}),
         amount: {
           gte: bill.amount.minus(1),
@@ -240,18 +266,27 @@ export class BillsService {
         include: { paidBill: { select: { id: true } } },
       });
       if (!tx) throw new NotFoundException();
-      if (tx.paidBill)
+      if (tx.paidBill) {
         throw new ConflictException({ message: 'Ese movimiento ya pagó otra factura.' });
-      if (tx.direction !== 'OUT' || tx.status === 'IGNORED' || tx.isOwnTransfer) {
+      }
+      const otherDebt =
+        tx.isStatementPayment ||
+        (tx.commitmentId !== null &&
+          !(
+            commitmentMonth &&
+            tx.commitmentId === bill.commitmentId &&
+            tx.commitmentMonth?.getTime() === monthKeyToDate(commitmentMonth).getTime()
+          ));
+      if (tx.direction !== 'OUT' || tx.status === 'IGNORED' || tx.isOwnTransfer || otherDebt) {
         throw new BadRequestException({ message: 'Ese movimiento no puede ser el pago.' });
       }
       if (statement && tx.method === 'CREDIT') {
         throw new BadRequestException({ message: 'El resumen no se paga con la misma tarjeta.' });
       }
+      // The status stays as it is: a movement still in review keeps its question in Pendientes.
       await this.prisma.transaction.update({
         where: { id: tx.id },
         data: {
-          status: 'CONFIRMED',
           ...(statement ? { isStatementPayment: true } : {}),
           ...(commitmentMonth
             ? { commitmentId: bill.commitmentId, commitmentMonth: monthKeyToDate(commitmentMonth) }
@@ -264,8 +299,34 @@ export class BillsService {
       if (statement && method === 'CREDIT') {
         throw new BadRequestException({ message: 'El resumen no se paga con la misma tarjeta.' });
       }
+      let amount = input.amount ?? toMoney(bill.amount);
+      if (commitmentMonth && bill.commitmentId) {
+        // Whatever the commitment's own "Pagué" already paid this month counts.
+        const paid = await this.prisma.transaction.findMany({
+          where: {
+            userId,
+            commitmentId: bill.commitmentId,
+            commitmentMonth: monthKeyToDate(commitmentMonth),
+            status: { not: 'IGNORED' },
+            isOwnTransfer: false,
+          },
+          orderBy: { occurredAt: 'desc' },
+          select: { id: true, amount: true, paidBill: { select: { id: true } } },
+        });
+        const paidSoFar = paid.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
+        const remainder = bill.amount.minus(paidSoFar);
+        const latest = paid.find((p) => !p.paidBill);
+        if (remainder.lte(0) && latest) {
+          const row = await this.prisma.bill.update({
+            where: { id },
+            data: { status: 'PAID', paidTransactionId: latest.id },
+          });
+          return toBillDto(row);
+        }
+        if (!input.amount && remainder.gt(0)) amount = toMoney(remainder);
+      }
       const created = await this.transactions.create(userId, {
-        amount: input.amount ?? toMoney(bill.amount),
+        amount,
         currency: bill.currency,
         direction: 'OUT',
         method,

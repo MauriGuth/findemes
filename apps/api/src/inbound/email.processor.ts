@@ -23,6 +23,7 @@ import {
   costMicros,
   type EmailExtraction,
   LLM_PROVIDER,
+  LlmRejectedError,
   type LlmProvider,
 } from '../llm/llm.provider.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -41,6 +42,15 @@ const EMAIL_MANUAL_WINDOW_MS = 24 * 3_600_000;
 const AMOUNT = /^\d{1,15}(\.\d{1,2})?$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-\d{2}$/;
+/** Claude errors on the same email before it is given up as unrecognized. */
+export const MAX_EMAIL_ATTEMPTS = 3;
+
+/** A real calendar date ("2026-02-29" is not). */
+function validDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 
 function money(value: string | null | undefined): string | null {
   if (!value || !AMOUNT.test(value.trim())) return null;
@@ -120,6 +130,15 @@ export class EmailProcessor {
           },
         });
 
+      const failures = await this.prisma.llmUsage.count({
+        where: { rawEventId: raw.id, outcome: 'error' },
+      });
+      if (failures >= MAX_EMAIL_ATTEMPTS) {
+        await this.movements.finish(raw.id, 'UNRECOGNIZED', 'llm_failed');
+        this.logger.log(`inbound.gave_up event=${raw.id}`);
+        return;
+      }
+
       let result;
       try {
         result = await this.llm.extractEmail({
@@ -128,11 +147,18 @@ export class EmailProcessor {
         });
       } catch (error) {
         await record('error', { model: this.llm.name, inputTokens: 0, outputTokens: 0 });
+        if (error instanceof LlmRejectedError) {
+          await this.movements.finish(raw.id, 'UNRECOGNIZED', 'llm_rejected');
+          this.logger.log(`inbound.rejected event=${raw.id}`);
+          return;
+        }
         throw error;
       }
 
-      const outcome = await this.apply(raw, result.value);
-      await record(outcome === 'not_financial' ? 'not_financial' : 'parsed', result);
+      // Billed: record it before using the answer, whatever happens next.
+      const notFinancial = result.value.kind === 'not_financial';
+      await record(notFinancial ? 'not_financial' : 'parsed', result);
+      await this.apply(raw, result.value);
     } catch (error) {
       await this.movements.finish(raw.id, 'FAILED', error instanceof Error ? error.name : 'Error');
       this.logger.error(`inbound.failed event=${raw.id}`);
@@ -199,6 +225,7 @@ export class EmailProcessor {
   /** The email's own date when plausible (within 7 days before it arrived), else arrival. */
   private occurredAt(value: string | null, postedAt: Date): Date {
     if (!value) return postedAt;
+    if (ISO_DATE.test(value) && !validDate(value)) return postedAt;
     const parsed = new Date(ISO_DATE.test(value) ? `${value}T12:00:00-03:00` : value);
     if (Number.isNaN(parsed.getTime())) return postedAt;
     const age = postedAt.getTime() - parsed.getTime();
@@ -218,7 +245,7 @@ export class EmailProcessor {
     },
   ): Promise<boolean> {
     const issuer = bill.issuer.trim().slice(0, 120);
-    if (!bill.amount || !issuer || !ISO_DATE.test(bill.dueOn)) return false;
+    if (!bill.amount || !issuer || !validDate(bill.dueOn)) return false;
     const due = isoToDate(bill.dueOn);
     const days = (due.getTime() - raw.postedAt.getTime()) / 86_400_000;
     if (Number.isNaN(days) || days < -120 || days > 400) return false;
@@ -240,7 +267,9 @@ export class EmailProcessor {
             currency: bill.currency,
             dueOn: due,
             periodMonth:
-              bill.periodMonth && MONTH.test(bill.periodMonth)
+              bill.periodMonth &&
+              MONTH.test(bill.periodMonth) &&
+              validDate(`${bill.periodMonth}-01`)
                 ? isoToDate(`${bill.periodMonth}-01`)
                 : null,
             status: 'PENDING',

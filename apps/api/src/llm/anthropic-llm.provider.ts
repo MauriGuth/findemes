@@ -7,6 +7,7 @@ import { EMAIL_OUTPUT_SCHEMA, EMAIL_SYSTEM_PROMPT } from './email-prompt.js';
 import {
   type EmailExtraction,
   type EmailExtractionInput,
+  LlmRejectedError,
   type LlmProvider,
   type LlmResult,
   type NotificationExtraction,
@@ -134,7 +135,7 @@ export class AnthropicLlmProvider implements LlmProvider {
     parser: z.ZodType<T>,
     timeoutMs?: number,
   ): Promise<LlmResult<T>> {
-    const response = await this.client.beta.messages.create(
+    const request = this.client.beta.messages.create(
       {
         model: this.model,
         max_tokens: 2048,
@@ -147,6 +148,15 @@ export class AnthropicLlmProvider implements LlmProvider {
       },
       timeoutMs ? { timeout: timeoutMs } : undefined,
     );
+    let response: Awaited<typeof request>;
+    try {
+      response = await request;
+    } catch (error) {
+      // 400 (bad or encrypted document), 413 (too large), 422: the same input always fails.
+      const status = error instanceof Anthropic.APIError ? Number(error.status) : 0;
+      if ([400, 413, 422].includes(status)) throw new LlmRejectedError(`status_${String(status)}`);
+      throw error;
+    }
 
     const usage = {
       model: response.model,

@@ -110,14 +110,17 @@ export class InboundAddressService {
     ]);
     let gmailConfirmation: InboundAddress['gmailConfirmation'] = null;
     if (confirmation) {
-      const payload = this.crypto.decrypt<{ confirmation: GmailConfirmation }>(
+      const payload = this.crypto.decrypt<{ confirmation: GmailConfirmation; token?: string }>(
         userId,
         confirmation,
       );
-      gmailConfirmation = {
-        ...payload.confirmation,
-        receivedAt: confirmation.receivedAt.toISOString(),
-      };
+      // Only the code sent to the current address: after a rotation, the old one is useless.
+      if (payload.token === token) {
+        gmailConfirmation = {
+          ...payload.confirmation,
+          receivedAt: confirmation.receivedAt.toISOString(),
+        };
+      }
     }
     return {
       address: this.format(token),

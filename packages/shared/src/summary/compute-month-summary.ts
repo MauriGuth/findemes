@@ -174,9 +174,22 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
     statementBills.length > 0
       ? sumMoney(statementBills.map((b) => b.amount))
       : normalizeMoney(input.previousStatement);
-  const statementPaidAmount = sumMoney(
-    outs.filter((t) => isCashMethod(t.method) && t.isStatementPayment).map((t) => t.amount),
+  // A payment counts for the statement it paid: one that paid a statement due in another
+  // month is cash spent now but settles that month's statement, not this one.
+  const statementPayments = outs.filter(
+    (t) =>
+      isCashMethod(t.method) &&
+      t.isStatementPayment &&
+      (!t.paysStatementDueOn || t.paysStatementDueOn.startsWith(month)),
   );
+  const outIds = new Set(outs.map((t) => t.id));
+  const paidEarlier = statementBills.filter(
+    (b) => b.status === 'PAID' && b.paidTransactionId && !outIds.has(b.paidTransactionId),
+  );
+  const statementPaidAmount = sumMoney([
+    ...statementPayments.map((t) => t.amount),
+    ...paidEarlier.map((b) => b.amount),
+  ]);
   const statementPaid = compareMoney(statementPaidAmount, previousAmount) >= 0;
   const unpaidStatement = nonNegative(subtractMoney(previousAmount, statementPaidAmount));
 
@@ -226,7 +239,16 @@ export function computeMonthSummary(input: MonthSummaryInput): MonthSummary {
   );
 
   // ── what the app must ask the user ──
-  const review = findReviewPairs(input.transactions.filter(inMonth));
+  const monthTxs = input.transactions.filter(inMonth);
+  const monthIds = new Set(monthTxs.map((t) => t.id));
+  const paired = findReviewPairs([...(input.pairingTransactions ?? []), ...monthTxs]);
+  // Pairs must involve this month; the previous month's movements only serve as partners.
+  const review = {
+    ownTransferPairs: paired.ownTransferPairs.filter((p) => monthIds.has(p.inId)),
+    possibleDuplicatePairs: paired.possibleDuplicatePairs.filter((p) => monthIds.has(p.autoId)),
+    crossChannelPairs: paired.crossChannelPairs.filter((p) => monthIds.has(p.dropId)),
+    reviewTransactionIds: paired.reviewTransactionIds.filter((id) => monthIds.has(id)),
+  };
   const pairedIns = new Set(review.ownTransferPairs.map((p) => p.inId));
   const salaryCandidateIds = eligibleInMonth
     .filter(

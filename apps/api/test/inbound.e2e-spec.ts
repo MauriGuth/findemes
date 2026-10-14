@@ -3,8 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { EmailIngestService } from '../src/inbound/email-ingest.service.js';
 import { type FakeLlmProvider } from '../src/llm/fake-llm.provider.js';
-import { type EmailExtraction } from '../src/llm/llm.provider.js';
-import { LLM_PROVIDER } from '../src/llm/llm.provider.js';
+import { type EmailExtraction, LLM_PROVIDER, LlmRejectedError } from '../src/llm/llm.provider.js';
 import { createTestApp, type TestApp } from './helpers/app.js';
 import { loginAs, type TestSession } from './helpers/auth.js';
 import { cleanupE2eData } from './helpers/db.js';
@@ -229,6 +228,68 @@ describe('inbound email and bills (e2e)', () => {
       .expect(204);
     s = await summary(session);
     expect(s.bills.unpaid).toBe('80000.00');
+    const again = await api().get('/bills').set(session.auth).expect(200);
+    expect(again.body.items[0].status).toBe('UNPAID');
+  });
+
+  it("paying the commitment pays its bill at the bill's price", async () => {
+    const session = await loginAs(ctx);
+    const commitment = await api()
+      .post('/commitments')
+      .set(session.auth)
+      .send({
+        kind: 'SERVICE',
+        name: 'Gas',
+        amount: '20000',
+        method: 'DEBIT',
+        dayOfMonth: 20,
+        startsOn: '2026-01',
+      })
+      .expect(201);
+    llm.respondToEmailWith(() => utility('35000.00'));
+    await deliver(mail(await addressOf(session)), 'stored');
+    const bill = await ctx.prisma.bill.findFirstOrThrow({ where: { userId: session.userId } });
+    await api()
+      .patch(`/bills/${bill.id}`)
+      .set(session.auth)
+      .send({ status: 'UNPAID', commitmentId: commitment.body.id })
+      .expect(200);
+
+    const paid = await api()
+      .post(`/commitments/${commitment.body.id as string}/payments`)
+      .set(session.auth)
+      .send({ commitmentMonth: '2026-10' })
+      .expect(201);
+    expect(paid.body.amount).toBe('35000.00');
+    const after = await ctx.prisma.bill.findUniqueOrThrow({ where: { id: bill.id } });
+    expect(after).toMatchObject({ status: 'PAID', paidTransactionId: paid.body.id });
+    await api()
+      .post(`/commitments/${commitment.body.id as string}/payments`)
+      .set(session.auth)
+      .send({ commitmentMonth: '2026-10' })
+      .expect(409);
+  });
+
+  it('never offers or accepts a movement that already pays something else', async () => {
+    const session = await loginAs(ctx);
+    llm.respondToEmailWith(() => utility('70000.00'));
+    await deliver(mail(await addressOf(session)), 'stored');
+    const bill = await ctx.prisma.bill.findFirstOrThrow({ where: { userId: session.userId } });
+    const statementPayment = await api()
+      .post('/transactions')
+      .set(session.auth)
+      .send({ amount: '70000', method: 'DEBIT', isStatementPayment: true })
+      .expect(201);
+    const candidates = await api()
+      .get(`/bills/${bill.id}/candidates`)
+      .set(session.auth)
+      .expect(200);
+    expect(candidates.body).toEqual([]);
+    await api()
+      .post(`/bills/${bill.id}/payments`)
+      .set(session.auth)
+      .send({ transactionId: statementPayment.body.id })
+      .expect(400);
   });
 
   it('links an existing movement as the payment of a commitment-priced bill', async () => {
@@ -327,5 +388,76 @@ describe('inbound email and bills (e2e)', () => {
     const retried = await ctx.prisma.rawEvent.findUniqueOrThrow({ where: { id: failed.id } });
     expect(retried.status).toBe('PROCESSED');
     ctx.clock.set(new Date('2026-10-14T15:00:00Z'));
+  });
+
+  it('gives up after three failures, and at once on input the provider refuses', async () => {
+    const session = await loginAs(ctx);
+    const to = await addressOf(session);
+    llm.respondToEmailWith(() => new Error('timeout'));
+    await deliver(mail(to), 'stored');
+    const failing = await ctx.prisma.rawEvent.findFirstOrThrow({
+      where: { userId: session.userId },
+    });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      ctx.clock.advance(6 * 60_000);
+      await deliver(mail(to, { Subject: `otra ${String(attempt)}` }), 'stored');
+    }
+    const gaveUp = await ctx.prisma.rawEvent.findUniqueOrThrow({ where: { id: failing.id } });
+    expect([gaveUp.status, gaveUp.error]).toEqual(['UNRECOGNIZED', 'llm_failed']);
+
+    llm.respondToEmailWith(() => new LlmRejectedError('status_400'));
+    await deliver(mail(to, { Subject: 'pdf con clave' }), 'stored');
+    const rejected = await ctx.prisma.rawEvent.findFirstOrThrow({
+      where: { userId: session.userId, error: 'llm_rejected' },
+    });
+    expect(rejected.status).toBe('UNRECOGNIZED');
+    ctx.clock.set(new Date('2026-10-14T15:00:00Z'));
+  });
+
+  it('ignores a bill whose due date does not exist, and records the call anyway', async () => {
+    const session = await loginAs(ctx);
+    llm.respondToEmailWith(() => ({
+      ...utility('5000.00'),
+      bill: {
+        ...(utility('5000.00').bill as NonNullable<EmailExtraction['bill']>),
+        dueOn: '2026-02-29',
+      },
+    }));
+    await deliver(mail(await addressOf(session)), 'stored');
+    const event = await ctx.prisma.rawEvent.findFirstOrThrow({ where: { userId: session.userId } });
+    expect(event.status).toBe('UNRECOGNIZED');
+    expect(await ctx.prisma.llmUsage.count({ where: { rawEventId: event.id } })).toBe(1);
+  });
+
+  it('keeps the notification cap apart from the email cap', async () => {
+    const session = await loginAs(ctx);
+    await ctx.prisma.llmUsage.createMany({
+      data: Array.from({ length: 30 }, () => ({
+        userId: session.userId,
+        purpose: 'email',
+        model: 'x',
+        inputTokens: 0,
+        outputTokens: 0,
+        costMicros: 0,
+        outcome: 'parsed',
+        createdAt: ctx.clock.now(),
+      })),
+    });
+    const token = await api().post('/devices/current/ingest-token').set(session.auth).expect(201);
+    await api()
+      .post('/ingest/notifications')
+      .set('Authorization', `Bearer ${token.body.token as string}`)
+      .send({
+        items: [
+          {
+            key: `cap-${String(process.pid)}`,
+            packageName: source.packageName,
+            postedAt: ctx.clock.now().toISOString(),
+            text: 'algo que ninguna template conoce',
+          },
+        ],
+      })
+      .expect(200);
+    expect(llm.calls).toHaveLength(1);
   });
 });

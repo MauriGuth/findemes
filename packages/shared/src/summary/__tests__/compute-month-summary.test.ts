@@ -589,4 +589,75 @@ describe('T7 — bills by email (ADR 013)', () => {
     expect(paid.statement.previous.paid).toBe(true);
     expect(paid.remaining).toBe('1330000.00');
   });
+
+  it('T7f: a statement paid the month before it is due is not owed again', () => {
+    const visa = bill({
+      kind: 'CARD_STATEMENT',
+      issuer: 'Visa',
+      amount: '200000.00',
+      dueOn: '2026-11-05',
+    });
+    const payment = tx({
+      amount: '200000.00',
+      occurredAt: '2026-10-30T15:00:00Z',
+      isStatementPayment: true,
+      paysStatementDueOn: '2026-11-05',
+    });
+    const oct = computeMonthSummary(
+      input({
+        month: '2026-10',
+        today: { year: 2026, month: 10, day: 30 },
+        previousStatement: '50000.00',
+        transactions: [payment],
+      }),
+    );
+    // October: cash left, but it does not pay October's (estimated) statement.
+    expect(oct.spent.cash).toBe('200000.00');
+    expect(oct.statement.previous.paid).toBe(false);
+
+    const nov = computeMonthSummary(
+      input({
+        month: '2026-11',
+        today: { year: 2026, month: 11, day: 2 },
+        previousStatement: '0.00',
+        bills: [{ ...visa, status: 'PAID', paidTransactionId: payment.id }],
+      }),
+    );
+    expect(nov.statement.previous).toEqual({
+      amount: '200000.00',
+      paid: true,
+      paidAmount: '200000.00',
+      source: 'bill',
+    });
+    expect(nov.remaining).toBe('1500000.00');
+    expect(nov.pending.needsStatementPayment).toBe(false);
+  });
+
+  it('T7g: an email on the 1st pairs with the notification of the 31st, without counting it', () => {
+    const notified = tx({
+      amount: '50000.00',
+      origin: 'TEMPLATE',
+      sourceId: 's-1',
+      capturedVia: 'ANDROID_NOTIFICATION',
+      occurredAt: '2026-09-30T23:30:00Z',
+    });
+    const emailed = tx({
+      amount: '50000.00',
+      origin: 'LLM',
+      status: 'PENDING',
+      capturedVia: 'EMAIL',
+      occurredAt: '2026-10-01T12:00:00Z',
+    });
+    const s = computeMonthSummary(
+      input({
+        month: '2026-10',
+        today: { year: 2026, month: 10, day: 1 },
+        transactions: [emailed],
+        pairingTransactions: [notified],
+      }),
+    );
+    expect(s.pending.crossChannelPairs).toEqual([{ keepId: notified.id, dropId: emailed.id }]);
+    expect(s.pending.reviewTransactionIds).toEqual([]);
+    expect(s.spent.cash).toBe('50000.00');
+  });
 });

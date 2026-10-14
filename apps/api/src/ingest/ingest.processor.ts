@@ -107,6 +107,7 @@ export class IngestProcessor {
     const usedToday = await this.prisma.llmUsage.count({
       where: {
         userId: raw.userId,
+        purpose: 'notification_fallback',
         createdAt: { gte: today.start, lt: today.end },
         outcome: { not: 'error' },
       },

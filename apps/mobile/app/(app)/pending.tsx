@@ -1,4 +1,4 @@
-import { formatArs, type Transaction } from '@findemes/shared';
+import { formatArs, previousMonthKey, type Transaction } from '@findemes/shared';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
@@ -55,14 +55,16 @@ export default function PendingScreen() {
   const month = currentMonthKey();
   const summary = useSummary(month);
   const transactions = useTransactions(month);
+  // A bank email on the 1st can pair with the notification of the 31st.
+  const lastMonth = useTransactions(previousMonthKey(month));
   const catalog = useCatalog();
   const update = useUpdateTransaction();
   const bills = useBills(month);
   const updateBill = useUpdateBill();
 
   const byId = useMemo(
-    () => new Map((transactions.data ?? []).map((t) => [t.id, t])),
-    [transactions.data],
+    () => new Map([...(lastMonth.data ?? []), ...(transactions.data ?? [])].map((t) => [t.id, t])),
+    [transactions.data, lastMonth.data],
   );
   const sourceName = (id: string | null) =>
     catalog.data?.sources.find((s) => s.id === id)?.name ?? undefined;
@@ -179,7 +181,9 @@ export default function PendingScreen() {
         {reviewBills.length > 0 ? (
           <View className="gap-3">
             <Text className="text-lg font-semibold text-white">Detectamos estas facturas</Text>
-            <Muted>Las leímos de tus correos y ya se restan de lo que te queda.</Muted>
+            <Muted>
+              Las leímos de tus correos. Las que son en pesos ya se restan de lo que te queda.
+            </Muted>
             {reviewBills.map((bill) => (
               <Card key={bill.id}>
                 <View className="flex-row items-center justify-between">

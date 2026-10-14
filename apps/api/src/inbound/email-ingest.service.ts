@@ -18,6 +18,8 @@ const MAX_PDF_BYTES = 8 * 1024 * 1024;
 const RETRY_BACKOFF_MS = 5 * 60_000;
 /** An email still RECEIVED this long after arriving lost its processing (deploy, cap). */
 const STALE_MS = 10 * 60_000;
+/** Retries stop looking further back than this (the event expires at 30 days anyway). */
+const RETRY_WINDOW_MS = 3 * 86_400_000;
 
 export type InboundOutcome =
   'stored' | 'duplicate' | 'unknown_recipient' | 'gmail_confirmation' | 'security_code';
@@ -31,6 +33,8 @@ export type InboundOutcome =
 export class EmailIngestService {
   private readonly logger = new Logger(EmailIngestService.name);
   private readonly inflight = new Set<Promise<void>>();
+  /** Events being read right now: concurrent webhooks must not send them to Claude twice. */
+  private readonly reading = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +56,12 @@ export class EmailIngestService {
       })
       .finally(() => this.inflight.delete(tracked));
     this.inflight.add(tracked);
+  }
+
+  private read(id: string): Promise<void> {
+    if (this.reading.has(id)) return Promise.resolve();
+    this.reading.add(id);
+    return this.processor.process(id).finally(() => this.reading.delete(id));
   }
 
   private recipientToken(mail: PostmarkInbound): string | null {
@@ -104,7 +114,7 @@ export class EmailIngestService {
       await this.prisma.rawEvent.create({
         data: {
           ...base,
-          ...this.crypto.encrypt(userId, { from, subject: mail.Subject, confirmation }),
+          ...this.crypto.encrypt(userId, { from, subject: mail.Subject, confirmation, token }),
           status: 'PROCESSED',
           error: GMAIL_CONFIRMATION_ERROR,
           processedAt: now,
@@ -135,7 +145,7 @@ export class EmailIngestService {
       select: { id: true },
     });
     this.logger.log(`inbound.stored event=${row.id} pdfs=${String(pdfs.length)}`);
-    this.track(this.processor.process(row.id));
+    this.track(this.read(row.id));
     this.retryLater(userId, now, row.id);
     return 'stored';
   }
@@ -149,6 +159,7 @@ export class EmailIngestService {
             userId,
             channel: 'EMAIL',
             ...(exceptId ? { id: { not: exceptId } } : {}),
+            receivedAt: { gte: new Date(now.getTime() - RETRY_WINDOW_MS) },
             OR: [
               {
                 status: 'FAILED',
@@ -161,7 +172,7 @@ export class EmailIngestService {
           take: 3,
           select: { id: true },
         });
-        for (const event of stuck) await this.processor.process(event.id);
+        for (const event of stuck) await this.read(event.id);
       })(),
     );
   }

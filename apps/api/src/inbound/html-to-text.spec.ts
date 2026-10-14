@@ -10,4 +10,12 @@ describe('htmlToText', () => {
       '<p>Peque&ntilde;o &amp; &#233;xito</p></body></html>';
     expect(htmlToText(html)).toBe('Total a pagar: $ 1.234,56\nVence 10/11\n\nPequeño & éxito');
   });
+
+  it('survives hostile input in linear time and never throws', () => {
+    const started = Date.now();
+    expect(htmlToText('<a '.repeat(200_000)).length).toBeGreaterThan(0);
+    expect(htmlToText(`${'<script>'.repeat(50_000)}x`)).toBe('');
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(htmlToText('a&#99999999;b&#x110000;c&#0;d')).toBe('a b c d');
+  });
 });

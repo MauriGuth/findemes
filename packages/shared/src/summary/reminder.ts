@@ -1,5 +1,5 @@
 import { addDays, artMidnight, type CalendarDate } from '../dates/tz.js';
-import { formatArs } from '../money/format.js';
+import { formatArs, formatMoney } from '../money/format.js';
 import { absMoney, compareMoney, divideMoney } from '../money/money.js';
 import { type MonthSummary } from './types.js';
 
@@ -78,6 +78,7 @@ export interface BillReminderInput {
   /** "YYYY-MM-DD" */
   dueOn: string;
   status: 'PENDING' | 'UNPAID' | 'PAID' | 'IGNORED';
+  currency?: 'ARS' | 'USD';
 }
 
 const BILL_REMINDER_HOUR = 10;
@@ -101,7 +102,10 @@ export function buildBillReminders(
     const due = { year, month, day };
     const at = (date: CalendarDate) =>
       new Date(artMidnight(date).getTime() + BILL_REMINDER_HOUR * 60 * MS_PER_MINUTE);
-    const amount = money(bill.amount);
+    const amount =
+      bill.currency === 'USD'
+        ? formatMoney(bill.amount, { currency: 'USD', cents: false })
+        : money(bill.amount);
     for (const entry of [
       { at: at(addDays(due, -1)), title: `Mañana vence ${bill.issuer}` },
       { at: at(due), title: `Hoy vence ${bill.issuer}` },
